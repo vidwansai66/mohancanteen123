@@ -13,14 +13,16 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
-import { format } from 'date-fns';
-import { Clock, CheckCircle, XCircle, Package, ChefHat, CreditCard } from 'lucide-react';
+import { format, differenceInHours } from 'date-fns';
+import { Clock, CheckCircle, XCircle, Package, ChefHat, CreditCard, Heart } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface OrderCardProps {
   order: Order;
   onPayNow?: () => void;
   onCancel?: () => void;
+  isFavourite?: boolean;
+  onToggleFavourite?: () => void;
 }
 
 const statusConfig: Record<Order['status'], { label: string; color: string; icon: React.ReactNode }> = {
@@ -33,7 +35,7 @@ const statusConfig: Record<Order['status'], { label: string; color: string; icon
   completed: { label: 'Completed', color: 'bg-muted text-muted-foreground', icon: <CheckCircle className="w-4 h-4" /> },
 };
 
-const OrderCard = ({ order, onPayNow, onCancel }: OrderCardProps) => {
+const OrderCard = ({ order, onPayNow, onCancel, isFavourite, onToggleFavourite }: OrderCardProps) => {
   const config = statusConfig[order.status];
 
   const paymentPending = order.status === 'accepted' && order.payment_status === 'unpaid';
@@ -41,16 +43,36 @@ const OrderCard = ({ order, onPayNow, onCancel }: OrderCardProps) => {
 
   const canCancel = order.status === 'pending' && !!onCancel;
 
+  // Check if order should be auto-cancelled (pending for > 5 hours)
+  const hoursPending = order.status === 'pending' 
+    ? differenceInHours(new Date(), new Date(order.created_at)) 
+    : 0;
+
   return (
     <Card className="p-4">
       <div className="flex items-start justify-between mb-3">
-        <div>
-          <p className="text-xs text-muted-foreground">
-            {format(new Date(order.created_at), 'MMM d, h:mm a')}
-          </p>
-          <p className="text-sm font-medium text-foreground mt-1">
-            Order #{order.id.slice(0, 8).toUpperCase()}
-          </p>
+        <div className="flex items-start gap-2">
+          {onToggleFavourite && (
+            <button
+              onClick={onToggleFavourite}
+              className="mt-1"
+            >
+              <Heart 
+                className={cn(
+                  'w-5 h-5 transition-colors',
+                  isFavourite ? 'fill-destructive text-destructive' : 'text-muted-foreground'
+                )} 
+              />
+            </button>
+          )}
+          <div>
+            <p className="text-xs text-muted-foreground">
+              {format(new Date(order.created_at), 'MMM d, h:mm a')}
+            </p>
+            <p className="text-sm font-medium text-foreground mt-1">
+              Order #{order.id.slice(0, 8).toUpperCase()}
+            </p>
+          </div>
         </div>
         <div className="flex flex-col gap-1 items-end">
           <Badge className={cn('flex items-center gap-1', config.color)}>
@@ -61,6 +83,11 @@ const OrderCard = ({ order, onPayNow, onCancel }: OrderCardProps) => {
             <Badge variant="destructive" className="flex items-center gap-1">
               <CreditCard className="w-3 h-3" />
               Payment pending
+            </Badge>
+          )}
+          {hoursPending >= 5 && (
+            <Badge variant="outline" className="text-destructive border-destructive text-xs">
+              Will auto-cancel soon
             </Badge>
           )}
         </div>
