@@ -1,12 +1,13 @@
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { useCartStore, CartItem } from '@/stores/cartStore';
-import { Minus, Plus, Trash2, ShoppingBag } from 'lucide-react';
+import { Minus, Plus, Trash2, ShoppingBag, Loader2, CheckCircle } from 'lucide-react';
 import { useState } from 'react';
 import { useUser } from '@clerk/clerk-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { Textarea } from '@/components/ui/textarea';
+import { cn } from '@/lib/utils';
 
 interface CartDrawerProps {
   open: boolean;
@@ -21,8 +22,8 @@ const CartDrawer = ({ open, onOpenChange, shopOpen = true, shopId }: CartDrawerP
   const { items, updateQuantity, removeItem, clearShopCart, getShopItems, getShopTotalPrice, getTotalPrice } = useCartStore();
   const [notes, setNotes] = useState('');
   const [isPlacing, setIsPlacing] = useState(false);
+  const [orderSuccess, setOrderSuccess] = useState(false);
 
-  // If shopId is provided, only show items from that shop
   const displayItems = shopId ? getShopItems(shopId) : items;
   const totalPrice = shopId ? getShopTotalPrice(shopId) : getTotalPrice();
 
@@ -31,7 +32,6 @@ const CartDrawer = ({ open, onOpenChange, shopOpen = true, shopId }: CartDrawerP
 
     setIsPlacing(true);
     try {
-      // Create order
       const { data: order, error: orderError } = await supabase
         .from('orders')
         .insert({
@@ -46,7 +46,6 @@ const CartDrawer = ({ open, onOpenChange, shopOpen = true, shopId }: CartDrawerP
 
       if (orderError) throw orderError;
 
-      // Create order items
       const orderItems = displayItems.map((item) => ({
         order_id: order.id,
         menu_item_id: item.id,
@@ -63,10 +62,15 @@ const CartDrawer = ({ open, onOpenChange, shopOpen = true, shopId }: CartDrawerP
 
       clearShopCart(shopId);
       setNotes('');
-      onOpenChange(false);
+      setOrderSuccess(true);
+
+      setTimeout(() => {
+        setOrderSuccess(false);
+        onOpenChange(false);
+      }, 2000);
 
       toast({
-        title: 'Order Placed!',
+        title: 'Order Placed! 🎉',
         description: 'Waiting for shopkeeper to accept your order.',
       });
     } catch (error) {
@@ -88,27 +92,45 @@ const CartDrawer = ({ open, onOpenChange, shopOpen = true, shopId }: CartDrawerP
           <SheetTitle className="flex items-center gap-2">
             <ShoppingBag className="w-5 h-5" />
             Your Cart
+            {displayItems.length > 0 && (
+              <span className="text-sm font-normal text-muted-foreground">
+                ({displayItems.length} {displayItems.length === 1 ? 'item' : 'items'})
+              </span>
+            )}
           </SheetTitle>
         </SheetHeader>
 
-        {displayItems.length === 0 ? (
-          <div className="flex-1 flex flex-col items-center justify-center text-center py-8">
-            <ShoppingBag className="w-16 h-16 text-muted-foreground mb-4" />
-            <h3 className="font-medium text-foreground mb-2">Your cart is empty</h3>
+        {orderSuccess ? (
+          <div className="flex-1 flex flex-col items-center justify-center text-center py-8 animate-scale-in">
+            <div className="w-20 h-20 bg-success/20 rounded-full flex items-center justify-center mb-4">
+              <CheckCircle className="w-10 h-10 text-success" />
+            </div>
+            <h3 className="font-semibold text-foreground text-lg mb-2">Order Placed!</h3>
             <p className="text-sm text-muted-foreground">
-              Add some delicious items from the menu!
+              Check your orders page for updates
+            </p>
+          </div>
+        ) : displayItems.length === 0 ? (
+          <div className="flex-1 flex flex-col items-center justify-center text-center py-8 animate-fade-in">
+            <div className="w-20 h-20 bg-muted rounded-full flex items-center justify-center mb-4">
+              <ShoppingBag className="w-10 h-10 text-muted-foreground" />
+            </div>
+            <h3 className="font-semibold text-foreground mb-2">Your cart is empty</h3>
+            <p className="text-sm text-muted-foreground max-w-xs">
+              Add some delicious items from the menu to get started!
             </p>
           </div>
         ) : (
           <>
-            <div className="flex-1 overflow-auto py-4 space-y-3">
-              {displayItems.map((item) => (
-                <CartItemRow
-                  key={item.id}
-                  item={item}
-                  onUpdateQuantity={updateQuantity}
-                  onRemove={removeItem}
-                />
+            <div className="flex-1 overflow-auto py-4 space-y-3 scrollbar-none">
+              {displayItems.map((item, index) => (
+                <div key={item.id} className={cn("animate-fade-in-up", `stagger-${(index % 4) + 1}`)}>
+                  <CartItemRow
+                    item={item}
+                    onUpdateQuantity={updateQuantity}
+                    onRemove={removeItem}
+                  />
+                </div>
               ))}
             </div>
 
@@ -117,22 +139,31 @@ const CartDrawer = ({ open, onOpenChange, shopOpen = true, shopId }: CartDrawerP
                 placeholder="Add special instructions (optional)"
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
-                className="resize-none"
+                className="resize-none min-h-[60px]"
                 rows={2}
               />
 
               <div className="flex items-center justify-between text-lg font-bold">
                 <span>Total</span>
-                <span className="text-primary">₹{totalPrice.toFixed(0)}</span>
+                <span className="text-primary text-xl">₹{totalPrice.toFixed(0)}</span>
               </div>
 
               <Button
-                className="w-full"
+                className="w-full min-h-[52px] text-base font-semibold touch-feedback"
                 size="lg"
                 onClick={handlePlaceOrder}
                 disabled={isPlacing || !shopOpen || !shopId}
               >
-                {isPlacing ? 'Placing Order...' : shopOpen ? 'Place Order' : 'Shop is Closed'}
+                {isPlacing ? (
+                  <>
+                    <Loader2 className="w-5 h-5 animate-spin mr-2" />
+                    Placing Order...
+                  </>
+                ) : shopOpen ? (
+                  'Place Order'
+                ) : (
+                  'Shop is Closed'
+                )}
               </Button>
             </div>
           </>
@@ -150,34 +181,35 @@ interface CartItemRowProps {
 
 const CartItemRow = ({ item, onUpdateQuantity, onRemove }: CartItemRowProps) => {
   return (
-    <div className="flex items-center gap-3 bg-secondary/50 rounded-lg p-3">
+    <div className="flex items-center gap-3 bg-secondary/50 rounded-xl p-3 transition-all hover:bg-secondary/70">
       <div className="flex-1 min-w-0">
         <h4 className="font-medium text-foreground truncate">{item.name}</h4>
-        <p className="text-sm text-primary">₹{item.price}</p>
+        <p className="text-sm text-primary font-semibold">₹{item.price}</p>
       </div>
 
       <div className="flex items-center gap-2">
         <Button
           variant="outline"
           size="icon"
-          className="h-8 w-8"
+          className="h-9 w-9 min-w-[36px] rounded-lg touch-feedback"
           onClick={() => onUpdateQuantity(item.id, item.quantity - 1)}
         >
           <Minus className="w-4 h-4" />
         </Button>
-        <span className="w-8 text-center font-medium">{item.quantity}</span>
+        <span className="w-8 text-center font-semibold">{item.quantity}</span>
         <Button
           variant="outline"
           size="icon"
-          className="h-8 w-8"
+          className="h-9 w-9 min-w-[36px] rounded-lg touch-feedback"
           onClick={() => onUpdateQuantity(item.id, item.quantity + 1)}
+          disabled={item.quantity >= 99}
         >
           <Plus className="w-4 h-4" />
         </Button>
         <Button
           variant="ghost"
           size="icon"
-          className="h-8 w-8 text-destructive hover:text-destructive"
+          className="h-9 w-9 min-w-[36px] text-destructive hover:text-destructive hover:bg-destructive/10 rounded-lg touch-feedback"
           onClick={() => onRemove(item.id)}
         >
           <Trash2 className="w-4 h-4" />
