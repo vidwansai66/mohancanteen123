@@ -7,14 +7,14 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { useNavigate } from 'react-router-dom';
-import { Store, Menu, Check, X } from 'lucide-react';
+import { Store, Menu, Check, X, CreditCard, AlertCircle } from 'lucide-react';
 import { format } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
 
 const ShopkeeperDashboard = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { orders, updateOrderStatus, isLoading } = useOrders(false);
+  const { orders, updateOrderStatus, updatePaymentStatus, isLoading } = useOrders(false);
   const { shopStatus, updateShopStatus } = useShopStatus();
 
   const activeOrders = orders.filter((o) => !['completed', 'rejected'].includes(o.status));
@@ -25,9 +25,21 @@ const ShopkeeperDashboard = () => {
     if (success) toast({ title: 'Order updated' });
   };
 
+  const handlePaymentConfirm = async (orderId: string) => {
+    const success = await updatePaymentStatus(orderId, 'paid');
+    if (success) toast({ title: 'Payment confirmed' });
+  };
+
   const handleShopToggle = async (isOpen: boolean) => {
     await updateShopStatus(isOpen);
     toast({ title: isOpen ? 'Shop is now open' : 'Shop is now closed' });
+  };
+
+  // Check if order can be updated beyond accepted (requires payment)
+  const canUpdateStatus = (order: Order) => {
+    if (order.status === 'pending') return true;
+    if (order.status === 'accepted' && order.payment_status === 'unpaid') return false;
+    return true;
   };
 
   return (
@@ -65,19 +77,43 @@ const ShopkeeperDashboard = () => {
                       <p className="font-medium">#{order.id.slice(0, 8).toUpperCase()}</p>
                       <p className="text-xs text-muted-foreground">{order.profile?.full_name || 'Customer'} • {format(new Date(order.created_at), 'h:mm a')}</p>
                     </div>
-                    <Badge>{order.status}</Badge>
+                    <div className="flex gap-2">
+                      <Badge>{order.status}</Badge>
+                      {order.status !== 'pending' && order.status !== 'rejected' && (
+                        <Badge variant={order.payment_status === 'paid' ? 'default' : 'destructive'}>
+                          {order.payment_status === 'paid' ? 'Paid' : 'Unpaid'}
+                        </Badge>
+                      )}
+                    </div>
                   </div>
                   <div className="text-sm space-y-1 mb-3">
                     {order.order_items?.map((item) => (<div key={item.id}>{item.quantity}x {item.item_name}</div>))}
                   </div>
                   <p className="font-bold text-primary mb-3">₹{Number(order.total).toFixed(0)}</p>
+                  
                   {order.status === 'pending' ? (
                     <div className="flex gap-2">
                       <Button size="sm" onClick={() => handleStatusChange(order.id, 'accepted')}><Check className="w-4 h-4 mr-1" />Accept</Button>
                       <Button size="sm" variant="destructive" onClick={() => handleStatusChange(order.id, 'rejected')}><X className="w-4 h-4 mr-1" />Reject</Button>
                     </div>
+                  ) : order.status === 'accepted' && order.payment_status === 'unpaid' ? (
+                    // Waiting for payment
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-2 p-3 bg-destructive/10 rounded-lg text-destructive">
+                        <AlertCircle className="w-4 h-4" />
+                        <span className="text-sm font-medium">Waiting for payment</span>
+                      </div>
+                      <Button size="sm" onClick={() => handlePaymentConfirm(order.id)} className="w-full">
+                        <CreditCard className="w-4 h-4 mr-2" />
+                        Confirm Payment Received
+                      </Button>
+                    </div>
                   ) : (
-                    <Select value={order.status} onValueChange={(v) => handleStatusChange(order.id, v as Order['status'])}>
+                    <Select 
+                      value={order.status} 
+                      onValueChange={(v) => handleStatusChange(order.id, v as Order['status'])}
+                      disabled={!canUpdateStatus(order)}
+                    >
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="accepted">Accepted</SelectItem>

@@ -15,6 +15,7 @@ export interface Order {
   id: string;
   user_id: string;
   status: 'pending' | 'accepted' | 'rejected' | 'preparing' | 'ready' | 'completed';
+  payment_status: 'unpaid' | 'paid';
   total: number;
   notes: string | null;
   created_at: string;
@@ -63,6 +64,7 @@ export const useOrders = (filterByUser = true) => {
         id: order.id,
         user_id: order.user_id,
         status: order.status as Order['status'],
+        payment_status: (order.payment_status || 'unpaid') as Order['payment_status'],
         total: order.total,
         notes: order.notes,
         created_at: order.created_at,
@@ -106,7 +108,12 @@ export const useOrders = (filterByUser = true) => {
             setOrders(prev => 
               prev.map(order => 
                 order.id === payload.new.id 
-                  ? { ...order, ...payload.new, status: payload.new.status as Order['status'] }
+                  ? { 
+                      ...order, 
+                      ...payload.new, 
+                      status: payload.new.status as Order['status'],
+                      payment_status: (payload.new.payment_status || 'unpaid') as Order['payment_status']
+                    }
                   : order
               )
             );
@@ -135,5 +142,18 @@ export const useOrders = (filterByUser = true) => {
     return true;
   };
 
-  return { orders, isLoading, updateOrderStatus, refetch: fetchOrders };
+  const updatePaymentStatus = async (orderId: string, paymentStatus: Order['payment_status']) => {
+    const { error } = await supabase
+      .from('orders')
+      .update({ payment_status: paymentStatus })
+      .eq('id', orderId);
+
+    if (error) {
+      console.error('Error updating payment status:', error);
+      return false;
+    }
+    return true;
+  };
+
+  return { orders, isLoading, updateOrderStatus, updatePaymentStatus, refetch: fetchOrders };
 };
