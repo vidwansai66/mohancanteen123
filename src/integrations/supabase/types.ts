@@ -439,6 +439,13 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      cancel_old_pending_orders: {
+        Args: never
+        Returns: {
+          cancelled_count: number
+          order_ids: string[]
+        }[]
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
