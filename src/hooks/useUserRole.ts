@@ -1,18 +1,19 @@
 import { useState, useEffect } from 'react';
 import { useUser } from '@clerk/clerk-react';
-import { supabase } from '@/integrations/supabase/client';
+import { useSupabaseWithClerk } from '@/hooks/useSupabaseWithClerk';
 
 export type UserRole = 'student' | 'shopkeeper' | null;
 
 export const useUserRole = () => {
   const { user, isLoaded } = useUser();
+  const supabase = useSupabaseWithClerk();
   const [role, setRole] = useState<UserRole>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     const fetchRole = async () => {
       if (!isLoaded) return;
-      
+
       if (!user) {
         setRole(null);
         setIsLoading(false);
@@ -30,7 +31,7 @@ export const useUserRole = () => {
           console.error('Error fetching role:', error);
           setRole(null);
         } else {
-          setRole(data?.role as UserRole || null);
+          setRole((data?.role as UserRole) || null);
         }
       } catch (error) {
         console.error('Error:', error);
@@ -41,7 +42,7 @@ export const useUserRole = () => {
     };
 
     fetchRole();
-  }, [user, isLoaded]);
+  }, [user, isLoaded, supabase]);
 
   const setUserRole = async (newRole: 'student' | 'shopkeeper') => {
     if (!user) return false;
@@ -50,19 +51,25 @@ export const useUserRole = () => {
       // First, ensure profile exists
       await supabase
         .from('profiles')
-        .upsert({
-          user_id: user.id,
-          email: user.primaryEmailAddress?.emailAddress,
-          full_name: user.fullName || user.firstName || '',
-        }, { onConflict: 'user_id' });
+        .upsert(
+          {
+            user_id: user.id,
+            email: user.primaryEmailAddress?.emailAddress,
+            full_name: user.fullName || user.firstName || '',
+          },
+          { onConflict: 'user_id' }
+        );
 
       // Set the role
       const { error } = await supabase
         .from('user_roles')
-        .upsert({
-          user_id: user.id,
-          role: newRole,
-        }, { onConflict: 'user_id,role' });
+        .upsert(
+          {
+            user_id: user.id,
+            role: newRole,
+          },
+          { onConflict: 'user_id' }
+        );
 
       if (error) {
         console.error('Error setting role:', error);
@@ -79,3 +86,4 @@ export const useUserRole = () => {
 
   return { role, isLoading, setUserRole, isLoaded };
 };
+
