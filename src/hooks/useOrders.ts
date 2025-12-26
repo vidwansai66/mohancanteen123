@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useUser } from '@clerk/clerk-react';
+import { useSupabaseWithClerk } from '@/hooks/useSupabaseWithClerk';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 
@@ -38,12 +39,18 @@ export interface Order {
 
 export const useOrders = (filterByUser = true, shopId?: string) => {
   const { user } = useUser();
+  const supabaseWithClerk = useSupabaseWithClerk();
   const { toast } = useToast();
   const [orders, setOrders] = useState<Order[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  const fetchOrders = async () => {
-    let query = supabase
+  const fetchOrders = useCallback(async () => {
+    if (!user) {
+      setIsLoading(false);
+      return;
+    }
+
+    let query = supabaseWithClerk
       .from('orders')
       .select(`
         *,
@@ -51,7 +58,7 @@ export const useOrders = (filterByUser = true, shopId?: string) => {
       `)
       .order('created_at', { ascending: false });
 
-    if (filterByUser && user) {
+    if (filterByUser) {
       query = query.eq('user_id', user.id);
     }
 
@@ -66,19 +73,19 @@ export const useOrders = (filterByUser = true, shopId?: string) => {
     } else {
       // Fetch profiles separately
       const userIds = [...new Set(data?.map(o => o.user_id) || [])];
-      const { data: profiles } = await supabase
+      const { data: profiles } = await supabaseWithClerk
         .from('profiles')
         .select('user_id, full_name, email')
         .in('user_id', userIds);
 
       const profileMap = new Map(profiles?.map(p => [p.user_id, p]) || []);
 
-      // Fetch shops separately
+      // Fetch shops separately (shops are publicly readable for active ones)
       const shopIds = [...new Set(data?.map(o => o.shop_id).filter(Boolean) || [])] as string[];
       let shopMap = new Map<string, { id: string; shop_name: string; upi_id: string | null; upi_name: string | null }>();
       
       if (shopIds.length > 0) {
-        const { data: shops } = await supabase
+        const { data: shops } = await supabaseWithClerk
           .from('shops')
           .select('id, shop_name, upi_id, upi_name')
           .in('id', shopIds);
@@ -114,12 +121,12 @@ export const useOrders = (filterByUser = true, shopId?: string) => {
       setOrders(mappedOrders);
     }
     setIsLoading(false);
-  };
+  }, [user, supabaseWithClerk, filterByUser, shopId]);
 
   useEffect(() => {
     fetchOrders();
 
-    // Subscribe to realtime updates
+    // Subscribe to realtime updates (use regular client for realtime - it's a separate channel)
     const channel = supabase
       .channel('orders-changes')
       .on(
@@ -152,10 +159,10 @@ export const useOrders = (filterByUser = true, shopId?: string) => {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [user, filterByUser, shopId]);
+  }, [fetchOrders, filterByUser, toast]);
 
   const updateOrderStatus = async (orderId: string, status: Order['status']) => {
-    const { error } = await supabase
+    const { error } = await supabaseWithClerk
       .from('orders')
       .update({ status, updated_at: new Date().toISOString() })
       .eq('id', orderId);
@@ -171,7 +178,7 @@ export const useOrders = (filterByUser = true, shopId?: string) => {
   };
 
   const cancelPendingOrder = async (orderId: string) => {
-    const { data, error } = await supabase
+    const { data, error } = await supabaseWithClerk
       .from('orders')
       .update({ status: 'cancelled', updated_at: new Date().toISOString() })
       .eq('id', orderId)
@@ -199,7 +206,7 @@ export const useOrders = (filterByUser = true, shopId?: string) => {
   };
 
   const updatePaymentStatus = async (orderId: string, paymentStatus: Order['payment_status']) => {
-    const { error } = await supabase
+    const { error } = await supabaseWithClerk
       .from('orders')
       .update({ payment_status: paymentStatus })
       .eq('id', orderId);
