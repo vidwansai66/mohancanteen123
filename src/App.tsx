@@ -95,7 +95,7 @@ function MissingClerkKeyError() {
   );
 }
 
-const App = () => {
+function App() {
   const [clerkPubKey, setClerkPubKey] = useState<string | null>(clerkPubKeyFromEnv ?? null);
   const [isConfigLoading, setIsConfigLoading] = useState(!clerkPubKeyFromEnv);
 
