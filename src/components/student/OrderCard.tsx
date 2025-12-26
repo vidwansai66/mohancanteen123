@@ -1,26 +1,45 @@
 import { Order } from '@/hooks/useOrders';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import { format } from 'date-fns';
 import { Clock, CheckCircle, XCircle, Package, ChefHat, CreditCard } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface OrderCardProps {
   order: Order;
+  onPayNow?: () => void;
+  onCancel?: () => void;
 }
 
 const statusConfig: Record<Order['status'], { label: string; color: string; icon: React.ReactNode }> = {
   pending: { label: 'Waiting', color: 'bg-warning text-warning-foreground', icon: <Clock className="w-4 h-4" /> },
   accepted: { label: 'Accepted', color: 'bg-primary text-primary-foreground', icon: <CheckCircle className="w-4 h-4" /> },
   rejected: { label: 'Rejected', color: 'bg-destructive text-destructive-foreground', icon: <XCircle className="w-4 h-4" /> },
+  cancelled: { label: 'Cancelled', color: 'bg-muted text-muted-foreground', icon: <XCircle className="w-4 h-4" /> },
   preparing: { label: 'Preparing', color: 'bg-primary text-primary-foreground', icon: <ChefHat className="w-4 h-4" /> },
   ready: { label: 'Ready!', color: 'bg-success text-success-foreground', icon: <Package className="w-4 h-4" /> },
   completed: { label: 'Completed', color: 'bg-muted text-muted-foreground', icon: <CheckCircle className="w-4 h-4" /> },
 };
 
-const OrderCard = ({ order }: OrderCardProps) => {
+const OrderCard = ({ order, onPayNow, onCancel }: OrderCardProps) => {
   const config = statusConfig[order.status];
-  const showPaymentStatus = order.status === 'accepted' && order.payment_status === 'unpaid';
+
+  const paymentPending = order.status === 'accepted' && order.payment_status === 'unpaid';
+  const canPayNow = paymentPending && !!onPayNow;
+
+  const canCancel = order.status === 'pending' && !!onCancel;
 
   return (
     <Card className="p-4">
@@ -38,27 +57,27 @@ const OrderCard = ({ order }: OrderCardProps) => {
             {config.icon}
             {config.label}
           </Badge>
-          {showPaymentStatus && (
+          {paymentPending && (
             <Badge variant="destructive" className="flex items-center gap-1">
               <CreditCard className="w-3 h-3" />
-              Pay Now
+              Payment pending
             </Badge>
           )}
         </div>
       </div>
 
       {/* Order Progress */}
-      {order.status !== 'rejected' && order.status !== 'completed' && (
+      {order.status !== 'rejected' && order.status !== 'completed' && order.status !== 'cancelled' && (
         <div className="mb-4">
-          <OrderProgress status={order.status} paymentPending={showPaymentStatus} />
+          <OrderProgress status={order.status} paymentPending={paymentPending} />
         </div>
       )}
 
       {/* Payment Notice */}
-      {showPaymentStatus && (
+      {paymentPending && (
         <div className="mb-3 p-3 bg-destructive/10 rounded-lg text-destructive text-sm">
           <p className="font-medium">Payment Required</p>
-          <p className="text-xs mt-1">Please pay ₹{Number(order.total).toFixed(0)} at the counter to continue your order.</p>
+          <p className="text-xs mt-1">After paying ₹{Number(order.total).toFixed(0)} at the counter, tap “Pay Now”.</p>
         </div>
       )}
 
@@ -80,6 +99,54 @@ const OrderCard = ({ order }: OrderCardProps) => {
         </p>
       )}
 
+      {(canPayNow || canCancel) && (
+        <div className="flex gap-2 mb-3">
+          {canCancel && (
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="destructive" size="sm" className="flex-1">
+                  Cancel Order
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Cancel this order?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    You can only cancel before the shopkeeper accepts.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Go back</AlertDialogCancel>
+                  <AlertDialogAction onClick={onCancel}>Cancel order</AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          )}
+
+          {canPayNow && (
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button size="sm" className="flex-1">
+                  Pay Now
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Confirm payment</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Tap confirm after you’ve paid at the counter.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Not yet</AlertDialogCancel>
+                  <AlertDialogAction onClick={onPayNow}>I paid</AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          )}
+        </div>
+      )}
+
       <div className="flex justify-between items-center pt-3 border-t border-border">
         <span className="font-medium text-foreground">Total</span>
         <span className="font-bold text-primary">₹{Number(order.total).toFixed(0)}</span>
@@ -99,7 +166,7 @@ const OrderProgress = ({ status, paymentPending }: { status: Order['status']; pa
           <div
             className={cn(
               'h-1 flex-1 rounded-full transition-colors',
-              index < currentIndex ? 'bg-primary' : 
+              index < currentIndex ? 'bg-primary' :
               index === currentIndex && paymentPending ? 'bg-destructive animate-pulse' :
               index === currentIndex ? 'bg-primary' : 'bg-muted'
             )}

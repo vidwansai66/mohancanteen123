@@ -14,7 +14,7 @@ export interface OrderItem {
 export interface Order {
   id: string;
   user_id: string;
-  status: 'pending' | 'accepted' | 'rejected' | 'preparing' | 'ready' | 'completed';
+  status: 'pending' | 'accepted' | 'rejected' | 'cancelled' | 'preparing' | 'ready' | 'completed';
   payment_status: 'unpaid' | 'paid';
   total: number;
   notes: string | null;

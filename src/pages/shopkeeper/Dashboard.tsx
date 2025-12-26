@@ -17,7 +17,7 @@ const ShopkeeperDashboard = () => {
   const { orders, updateOrderStatus, updatePaymentStatus, isLoading } = useOrders(false);
   const { shopStatus, updateShopStatus } = useShopStatus();
 
-  const activeOrders = orders.filter((o) => !['completed', 'rejected'].includes(o.status));
+  const activeOrders = orders.filter((o) => !['completed', 'rejected', 'cancelled'].includes(o.status));
   const completedOrders = orders.filter((o) => o.status === 'completed').slice(0, 40);
 
   const handleStatusChange = async (orderId: string, status: Order['status']) => {
@@ -101,11 +101,11 @@ const ShopkeeperDashboard = () => {
                     <div className="space-y-3">
                       <div className="flex items-center gap-2 p-3 bg-destructive/10 rounded-lg text-destructive">
                         <AlertCircle className="w-4 h-4" />
-                        <span className="text-sm font-medium">Waiting for payment</span>
+                        <span className="text-sm font-medium">Waiting for student payment</span>
                       </div>
-                      <Button size="sm" onClick={() => handlePaymentConfirm(order.id)} className="w-full">
+                      <Button size="sm" onClick={() => handlePaymentConfirm(order.id)} className="w-full" variant="outline">
                         <CreditCard className="w-4 h-4 mr-2" />
-                        Confirm Payment Received
+                        Confirm Payment (optional)
                       </Button>
                     </div>
                   ) : (
