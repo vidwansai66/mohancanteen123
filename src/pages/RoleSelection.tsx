@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import { UtensilsCrossed, GraduationCap, Store, ArrowLeft, Loader2, Mail, KeyRound } from 'lucide-react';
 import { useUserRole } from '@/hooks/useUserRole';
 import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 import { useSupabaseWithClerk } from '@/hooks/useSupabaseWithClerk';
 import {
   InputOTP,
@@ -22,7 +23,7 @@ const RoleSelection = () => {
   const { user } = useUser();
   const { role, setUserRole } = useUserRole();
   const { toast } = useToast();
-  const supabase = useSupabaseWithClerk();
+  const supabaseWithClerk = useSupabaseWithClerk();
   const [isLoading, setIsLoading] = useState(false);
   const [step, setStep] = useState<Step>('select');
   const [verificationCode, setVerificationCode] = useState('');
@@ -136,8 +137,8 @@ const RoleSelection = () => {
 
     setIsLoading(true);
     try {
-      // Create the shop first
-      const { error: shopError } = await supabase
+      // Create the shop first using authenticated client
+      const { error: shopError } = await supabaseWithClerk
         .from('shops')
         .insert({
           owner_user_id: user.id,
