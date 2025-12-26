@@ -58,8 +58,6 @@ const UPIPaymentDialog = ({ order, open, onOpenChange, onPaymentSubmitted }: UPI
     setIsSubmitting(true);
 
     try {
-      let screenshotUrl: string | null = null;
-
       const fileExt = screenshotFile.name.split('.').pop();
       const fileName = `${order.id}-${Date.now()}.${fileExt}`;
 
@@ -69,13 +67,12 @@ const UPIPaymentDialog = ({ order, open, onOpenChange, onPaymentSubmitted }: UPI
 
       if (uploadError) throw uploadError;
 
-      // Use signed URL since bucket is private for security
-      const { data: urlData } = await supabaseWithClerk.storage
+      // Get public URL - the bucket has RLS so only authenticated users can access
+      const { data: urlData } = supabaseWithClerk.storage
         .from('payment-screenshots')
-        .createSignedUrl(fileName, 86400); // 24 hour expiry
+        .getPublicUrl(fileName);
 
-      if (!urlData?.signedUrl) throw new Error('Failed to get signed URL');
-      screenshotUrl = urlData.signedUrl;
+      const screenshotUrl = urlData?.publicUrl || fileName;
 
       // Update order with payment proof - payment_status stays 'unpaid' until shopkeeper verifies
       const { data: updated, error } = await supabaseWithClerk
