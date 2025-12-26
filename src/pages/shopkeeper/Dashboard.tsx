@@ -30,35 +30,39 @@ const ShopkeeperDashboard = () => {
   const activeOrders = orders.filter((o) => !['completed', 'rejected', 'cancelled'].includes(o.status));
   const completedOrders = orders.filter((o) => o.status === 'completed').slice(0, 10);
 
+  // Generate signed URLs for payment screenshots (bucket is now private)
   useEffect(() => {
-    const missing = orders
-      .filter((o) => o.status === 'accepted' && o.payment_status === 'unpaid' && !o.payment_screenshot_url)
-      .map((o) => o.id)
-      .filter((id) => !fallbackScreenshotUrls[id]);
+    const ordersNeedingUrls = orders.filter(
+      (o) => o.status === 'accepted' && o.payment_status === 'unpaid' && o.payment_screenshot_url
+    );
 
-    if (missing.length === 0) return;
+    if (ordersNeedingUrls.length === 0) return;
 
     let cancelled = false;
 
     (async () => {
-      // List once, then match by prefix "{orderId}-" (files are stored at bucket root)
-      const { data: files, error } = await supabaseWithClerk.storage
-        .from('payment-screenshots')
-        .list('', { limit: 100, sortBy: { column: 'created_at', order: 'desc' } });
-
-      if (cancelled || error || !files || files.length === 0) return;
-
       const updates: Record<string, string> = {};
 
-      for (const orderId of missing) {
-        const match = files.find((f) => (f.name || '').startsWith(`${orderId}-`));
-        if (!match?.name) continue;
+      for (const order of ordersNeedingUrls) {
+        // Skip if we already have a signed URL for this order
+        if (fallbackScreenshotUrls[order.id]) continue;
 
+        const filePath = order.payment_screenshot_url!;
+        
+        // Check if it's already a full URL (legacy) or a file path
+        if (filePath.startsWith('http')) {
+          updates[order.id] = filePath;
+          continue;
+        }
+
+        // Generate signed URL for the file path
         const { data: urlData } = await supabaseWithClerk.storage
           .from('payment-screenshots')
-          .createSignedUrl(match.name, 86400);
+          .createSignedUrl(filePath, 3600); // 1 hour expiry
 
-        if (urlData?.signedUrl) updates[orderId] = urlData.signedUrl;
+        if (urlData?.signedUrl) {
+          updates[order.id] = urlData.signedUrl;
+        }
       }
 
       if (cancelled) return;
@@ -228,10 +232,12 @@ const ShopkeeperDashboard = () => {
                   ) : order.status === 'accepted' && order.payment_status === 'unpaid' ? (
                     // Waiting for payment - check if student submitted screenshot
                     (() => {
-                      const screenshotUrl = order.payment_screenshot_url || fallbackScreenshotUrls[order.id];
+                      // Use signed URL from fallbackScreenshotUrls (generated in useEffect)
+                      const screenshotUrl = fallbackScreenshotUrls[order.id];
+                      const hasScreenshot = !!order.payment_screenshot_url;
                       return (
                         <div className="space-y-3">
-                          {screenshotUrl ? (
+                          {hasScreenshot && screenshotUrl ? (
                             // Student submitted payment proof - shopkeeper needs to verify
                             <>
                               <div className="p-3 bg-yellow-500/10 rounded-lg space-y-2">
@@ -262,6 +268,12 @@ const ShopkeeperDashboard = () => {
                                 Confirm Payment Received
                               </Button>
                             </>
+                          ) : hasScreenshot && !screenshotUrl ? (
+                            // Screenshot uploaded but signed URL not ready yet
+                            <div className="flex items-center gap-2 p-3 bg-muted rounded-lg">
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                              <span className="text-sm">Loading payment screenshot...</span>
+                            </div>
                           ) : (
                             // No payment proof yet
                             <>
