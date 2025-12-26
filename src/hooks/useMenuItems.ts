@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useUser } from '@clerk/clerk-react';
+import { useSupabaseWithClerk } from '@/hooks/useSupabaseWithClerk';
 import { supabase } from '@/integrations/supabase/client';
 
 export interface MenuItem {
@@ -16,10 +17,12 @@ export interface MenuItem {
 }
 
 export const useMenuItems = (shopId?: string) => {
+  const supabaseWithClerk = useSupabaseWithClerk();
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  const fetchMenuItems = async () => {
+  const fetchMenuItems = useCallback(async () => {
+    // Menu items are publicly readable, but we use the clerk client for consistency
     let query = supabase
       .from('menu_items')
       .select('*')
@@ -38,14 +41,14 @@ export const useMenuItems = (shopId?: string) => {
       setMenuItems((data as MenuItem[]) || []);
     }
     setIsLoading(false);
-  };
+  }, [shopId]);
 
   useEffect(() => {
     fetchMenuItems();
-  }, [shopId]);
+  }, [fetchMenuItems]);
 
   const addMenuItem = async (item: Omit<MenuItem, 'id' | 'created_at' | 'updated_at'>) => {
-    const { data, error } = await supabase
+    const { data, error } = await supabaseWithClerk
       .from('menu_items')
       .insert(item)
       .select()
@@ -61,7 +64,7 @@ export const useMenuItems = (shopId?: string) => {
   };
 
   const updateMenuItem = async (id: string, updates: Partial<MenuItem>) => {
-    const { data, error } = await supabase
+    const { data, error } = await supabaseWithClerk
       .from('menu_items')
       .update(updates)
       .eq('id', id)
@@ -78,7 +81,7 @@ export const useMenuItems = (shopId?: string) => {
   };
 
   const deleteMenuItem = async (id: string) => {
-    const { error } = await supabase
+    const { error } = await supabaseWithClerk
       .from('menu_items')
       .delete()
       .eq('id', id);

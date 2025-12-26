@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useUser } from '@clerk/clerk-react';
+import { useSupabaseWithClerk } from '@/hooks/useSupabaseWithClerk';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 
@@ -14,6 +15,7 @@ export interface OrderMessage {
 
 export const useOrderChat = (orderId: string | null) => {
   const { user } = useUser();
+  const supabaseWithClerk = useSupabaseWithClerk();
   const { toast } = useToast();
   const [messages, setMessages] = useState<OrderMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -21,7 +23,7 @@ export const useOrderChat = (orderId: string | null) => {
   const fetchMessages = useCallback(async () => {
     if (!orderId) return;
     setIsLoading(true);
-    const { data, error } = await supabase
+    const { data, error } = await supabaseWithClerk
       .from('order_messages')
       .select('*')
       .eq('order_id', orderId)
@@ -33,7 +35,7 @@ export const useOrderChat = (orderId: string | null) => {
       setMessages(data as OrderMessage[]);
     }
     setIsLoading(false);
-  }, [orderId]);
+  }, [orderId, supabaseWithClerk]);
 
   useEffect(() => {
     if (!orderId) {
@@ -43,7 +45,7 @@ export const useOrderChat = (orderId: string | null) => {
 
     fetchMessages();
 
-    // Subscribe to realtime updates
+    // Subscribe to realtime updates (realtime uses regular client)
     const channel = supabase
       .channel(`order-chat-${orderId}`)
       .on(
@@ -72,7 +74,7 @@ export const useOrderChat = (orderId: string | null) => {
   const sendMessage = async (message: string, senderRole: 'student' | 'shopkeeper') => {
     if (!orderId || !user || !message.trim()) return false;
 
-    const { error } = await supabase.from('order_messages').insert({
+    const { error } = await supabaseWithClerk.from('order_messages').insert({
       order_id: orderId,
       sender_user_id: user.id,
       sender_role: senderRole,

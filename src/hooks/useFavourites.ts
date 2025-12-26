@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useUser } from '@clerk/clerk-react';
-import { supabase } from '@/integrations/supabase/client';
+import { useSupabaseWithClerk } from '@/hooks/useSupabaseWithClerk';
 import { useToast } from '@/hooks/use-toast';
 import { Order, OrderItem } from './useOrders';
 
@@ -30,16 +30,17 @@ export interface FavouriteOrder {
 
 export const useFavourites = () => {
   const { user } = useUser();
+  const supabaseWithClerk = useSupabaseWithClerk();
   const { toast } = useToast();
   const [favouriteItems, setFavouriteItems] = useState<FavouriteItem[]>([]);
   const [favouriteOrders, setFavouriteOrders] = useState<FavouriteOrder[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  const fetchFavourites = async () => {
+  const fetchFavourites = useCallback(async () => {
     if (!user) return;
 
     // Fetch favourite items with menu item details
-    const { data: itemsData, error: itemsError } = await supabase
+    const { data: itemsData, error: itemsError } = await supabaseWithClerk
       .from('favourite_items')
       .select(`
         *,
@@ -58,7 +59,7 @@ export const useFavourites = () => {
     }
 
     // Fetch favourite orders with order details
-    const { data: ordersData, error: ordersError } = await supabase
+    const { data: ordersData, error: ordersError } = await supabaseWithClerk
       .from('favourite_orders')
       .select(`
         *,
@@ -94,16 +95,16 @@ export const useFavourites = () => {
     }
 
     setIsLoading(false);
-  };
+  }, [user, supabaseWithClerk]);
 
   useEffect(() => {
     fetchFavourites();
-  }, [user]);
+  }, [fetchFavourites]);
 
   const addFavouriteItem = async (menuItemId: string) => {
     if (!user) return false;
 
-    const { error } = await supabase
+    const { error } = await supabaseWithClerk
       .from('favourite_items')
       .insert({ user_id: user.id, menu_item_id: menuItemId });
 
@@ -125,7 +126,7 @@ export const useFavourites = () => {
   const removeFavouriteItem = async (menuItemId: string) => {
     if (!user) return false;
 
-    const { error } = await supabase
+    const { error } = await supabaseWithClerk
       .from('favourite_items')
       .delete()
       .eq('user_id', user.id)
@@ -144,7 +145,7 @@ export const useFavourites = () => {
   const addFavouriteOrder = async (orderId: string) => {
     if (!user) return false;
 
-    const { error } = await supabase
+    const { error } = await supabaseWithClerk
       .from('favourite_orders')
       .insert({ user_id: user.id, order_id: orderId });
 
@@ -166,7 +167,7 @@ export const useFavourites = () => {
   const removeFavouriteOrder = async (orderId: string) => {
     if (!user) return false;
 
-    const { error } = await supabase
+    const { error } = await supabaseWithClerk
       .from('favourite_orders')
       .delete()
       .eq('user_id', user.id)

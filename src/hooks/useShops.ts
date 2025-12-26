@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useUser } from '@clerk/clerk-react';
+import { useSupabaseWithClerk } from '@/hooks/useSupabaseWithClerk';
 import { supabase } from '@/integrations/supabase/client';
 
 export interface Shop {
@@ -20,9 +21,11 @@ export const useShops = () => {
   const [isLoading, setIsLoading] = useState(true);
 
   const fetchShops = async () => {
+    // Shops are publicly readable for active ones, use regular client
     const { data, error } = await supabase
       .from('shops')
       .select('*')
+      .eq('is_active', true)
       .order('shop_name', { ascending: true });
 
     if (error) {
@@ -62,16 +65,17 @@ export const useShops = () => {
 
 export const useMyShop = () => {
   const { user } = useUser();
+  const supabaseWithClerk = useSupabaseWithClerk();
   const [shop, setShop] = useState<Shop | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  const fetchMyShop = async () => {
+  const fetchMyShop = useCallback(async () => {
     if (!user) {
       setIsLoading(false);
       return;
     }
 
-    const { data, error } = await supabase
+    const { data, error } = await supabaseWithClerk
       .from('shops')
       .select('*')
       .eq('owner_user_id', user.id)
@@ -83,16 +87,16 @@ export const useMyShop = () => {
       setShop(data as Shop | null);
     }
     setIsLoading(false);
-  };
+  }, [user, supabaseWithClerk]);
 
   useEffect(() => {
     fetchMyShop();
-  }, [user]);
+  }, [fetchMyShop]);
 
   const createShop = async (shopName: string) => {
     if (!user) return null;
 
-    const { data, error } = await supabase
+    const { data, error } = await supabaseWithClerk
       .from('shops')
       .insert({
         owner_user_id: user.id,
@@ -113,7 +117,7 @@ export const useMyShop = () => {
   const updateShop = async (updates: Partial<Pick<Shop, 'shop_name' | 'upi_id' | 'upi_name' | 'is_open' | 'reopen_time' | 'is_active'>>) => {
     if (!shop) return false;
 
-    const { data, error } = await supabase
+    const { data, error } = await supabaseWithClerk
       .from('shops')
       .update(updates)
       .eq('id', shop.id)
