@@ -9,10 +9,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch';
 import { AspectRatio } from '@/components/ui/aspect-ratio';
 import { useNavigate } from 'react-router-dom';
-import { Store, Menu, Check, X, CreditCard, AlertCircle, Settings, Loader2 } from 'lucide-react';
+import { Store, Menu, Check, X, CreditCard, AlertCircle, Settings, Loader2, MessageCircle } from 'lucide-react';
 import { format } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
 import ShopSettingsDialog from '@/components/shopkeeper/ShopSettingsDialog';
+import OrderChatDialog from '@/components/OrderChatDialog';
 
 const ShopkeeperDashboard = () => {
   const navigate = useNavigate();
@@ -20,9 +21,13 @@ const ShopkeeperDashboard = () => {
   const { shop, isLoading: shopLoading, updateShop } = useMyShop();
   const { orders, updateOrderStatus, updatePaymentStatus, isLoading } = useOrders(false, shop?.id);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [chatOrderId, setChatOrderId] = useState<string | null>(null);
 
   const activeOrders = orders.filter((o) => !['completed', 'rejected', 'cancelled'].includes(o.status));
   const completedOrders = orders.filter((o) => o.status === 'completed').slice(0, 40);
+
+  // Find chat order for student name
+  const chatOrder = orders.find((o) => o.id === chatOrderId);
 
   const handleStatusChange = async (orderId: string, status: Order['status']) => {
     const success = await updateOrderStatus(orderId, status);
@@ -77,9 +82,7 @@ const ShopkeeperDashboard = () => {
             <Store className="w-6 h-6 text-primary" />
             <div>
               <h1 className="font-bold text-foreground">{shop.shop_name}</h1>
-              {!shop.upi_id && (
-                <p className="text-xs text-destructive">Set up UPI to receive payments</p>
-              )}
+              {!shop.upi_id && <p className="text-xs text-destructive">Set up UPI to receive payments</p>}
             </div>
           </div>
           <div className="flex items-center gap-2 sm:gap-4">
@@ -136,7 +139,9 @@ const ShopkeeperDashboard = () => {
                   <div className="flex justify-between items-start mb-3">
                     <div>
                       <p className="font-medium">#{order.id.slice(0, 8).toUpperCase()}</p>
-                      <p className="text-xs text-muted-foreground">{order.profile?.full_name || 'Customer'} • {format(new Date(order.created_at), 'h:mm a')}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {order.profile?.full_name || 'Customer'} • {format(new Date(order.created_at), 'h:mm a')}
+                      </p>
                     </div>
                     <div className="flex gap-2">
                       <Badge>{order.status}</Badge>
@@ -148,14 +153,30 @@ const ShopkeeperDashboard = () => {
                     </div>
                   </div>
                   <div className="text-sm space-y-1 mb-3">
-                    {order.order_items?.map((item) => (<div key={item.id}>{item.quantity}x {item.item_name}</div>))}
+                    {order.order_items?.map((item) => (
+                      <div key={item.id}>
+                        {item.quantity}x {item.item_name}
+                      </div>
+                    ))}
                   </div>
                   <p className="font-bold text-primary mb-3">₹{Number(order.total).toFixed(0)}</p>
-                  
+
+                  {/* Chat Button */}
+                  <Button variant="outline" size="sm" className="w-full mb-3" onClick={() => setChatOrderId(order.id)}>
+                    <MessageCircle className="w-4 h-4 mr-2" />
+                    Chat with {order.profile?.full_name || 'Customer'}
+                  </Button>
+
                   {order.status === 'pending' ? (
                     <div className="flex gap-2">
-                      <Button size="sm" onClick={() => handleStatusChange(order.id, 'accepted')}><Check className="w-4 h-4 mr-1" />Accept</Button>
-                      <Button size="sm" variant="destructive" onClick={() => handleStatusChange(order.id, 'rejected')}><X className="w-4 h-4 mr-1" />Reject</Button>
+                      <Button size="sm" onClick={() => handleStatusChange(order.id, 'accepted')}>
+                        <Check className="w-4 h-4 mr-1" />
+                        Accept
+                      </Button>
+                      <Button size="sm" variant="destructive" onClick={() => handleStatusChange(order.id, 'rejected')}>
+                        <X className="w-4 h-4 mr-1" />
+                        Reject
+                      </Button>
                     </div>
                   ) : order.status === 'accepted' && order.payment_status === 'unpaid' ? (
                     // Waiting for payment - check if student submitted screenshot
@@ -164,7 +185,9 @@ const ShopkeeperDashboard = () => {
                         // Student submitted payment proof - shopkeeper needs to verify
                         <>
                           <div className="p-3 bg-yellow-500/10 rounded-lg space-y-2">
-                            <p className="text-sm font-medium text-yellow-600">Payment screenshot submitted - Verify & Confirm</p>
+                            <p className="text-sm font-medium text-yellow-600">
+                              Payment screenshot submitted - Verify & Confirm
+                            </p>
                             <a
                               href={order.payment_screenshot_url}
                               target="_blank"
@@ -209,11 +232,13 @@ const ShopkeeperDashboard = () => {
                       <div className="p-3 bg-green-500/10 rounded-lg">
                         <p className="text-sm font-medium text-green-600">✓ Payment Verified</p>
                       </div>
-                      <Select 
-                        value={order.status} 
+                      <Select
+                        value={order.status}
                         onValueChange={(v) => handleStatusChange(order.id, v as Order['status'])}
                       >
-                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="accepted">Accepted</SelectItem>
                           <SelectItem value="preparing">Preparing</SelectItem>
@@ -223,12 +248,14 @@ const ShopkeeperDashboard = () => {
                       </Select>
                     </div>
                   ) : (
-                    <Select 
-                      value={order.status} 
+                    <Select
+                      value={order.status}
                       onValueChange={(v) => handleStatusChange(order.id, v as Order['status'])}
                       disabled={!canUpdateStatus(order)}
                     >
-                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="accepted">Accepted</SelectItem>
                         <SelectItem value="preparing">Preparing</SelectItem>
@@ -255,7 +282,9 @@ const ShopkeeperDashboard = () => {
                   <div className="flex justify-between">
                     <div>
                       <p className="font-medium">#{order.id.slice(0, 8).toUpperCase()}</p>
-                      <p className="text-xs text-muted-foreground">{format(new Date(order.created_at), 'MMM d, h:mm a')}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {format(new Date(order.created_at), 'MMM d, h:mm a')}
+                      </p>
                     </div>
                     <p className="font-bold">₹{Number(order.total).toFixed(0)}</p>
                   </div>
@@ -266,11 +295,15 @@ const ShopkeeperDashboard = () => {
         </div>
       </main>
 
-      <ShopSettingsDialog 
-        open={settingsOpen} 
-        onOpenChange={setSettingsOpen} 
-        shop={shop} 
-        onUpdate={updateShop} 
+      <ShopSettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} shop={shop} onUpdate={updateShop} />
+
+      <OrderChatDialog
+        orderId={chatOrderId}
+        open={!!chatOrderId}
+        onOpenChange={(open) => !open && setChatOrderId(null)}
+        currentUserRole="shopkeeper"
+        studentName={chatOrder?.profile?.full_name}
+        shopName={shop.shop_name}
       />
     </div>
   );
