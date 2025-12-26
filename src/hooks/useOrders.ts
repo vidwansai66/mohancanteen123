@@ -128,38 +128,72 @@ export const useOrders = (filterByUser = true, shopId?: string) => {
 
     // Subscribe to realtime updates (use regular client for realtime - it's a separate channel)
     const channel = supabase
-      .channel('orders-changes')
+      .channel('orders-realtime')
       .on(
         'postgres_changes',
         {
-          event: '*',
+          event: 'INSERT',
+          schema: 'public',
+          table: 'orders',
+          ...(shopId ? { filter: `shop_id=eq.${shopId}` } : {}),
+        },
+        (payload) => {
+          console.log('🔔 New order received:', payload);
+          fetchOrders();
+          if (!filterByUser && shopId) {
+            // Play notification sound for shopkeeper
+            try {
+              const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
+              audio.volume = 0.5;
+              audio.play().catch(() => {});
+            } catch (e) {}
+            toast({
+              title: '🔔 New Order!',
+              description: 'A new order has been placed.',
+            });
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'orders',
+          ...(shopId ? { filter: `shop_id=eq.${shopId}` } : {}),
+        },
+        (payload) => {
+          console.log('📝 Order updated:', payload);
+          // Immediately update local state for faster UI response
+          setOrders(prev => prev.map(order => 
+            order.id === payload.new.id 
+              ? { ...order, ...payload.new as Partial<Order> }
+              : order
+          ));
+          // Then refetch to get complete data with relations
+          fetchOrders();
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'DELETE',
           schema: 'public',
           table: 'orders',
         },
         (payload) => {
-          if (payload.eventType === 'INSERT') {
-            // New order - refetch to get order items
-            fetchOrders();
-            if (!filterByUser) {
-              toast({
-                title: '🔔 New Order!',
-                description: 'A new order has been placed.',
-              });
-            }
-          } else if (payload.eventType === 'UPDATE') {
-            // Refetch to get the latest data including utr_number and payment_screenshot_url
-            fetchOrders();
-          } else if (payload.eventType === 'DELETE') {
-            setOrders(prev => prev.filter(order => order.id !== payload.old.id));
-          }
+          console.log('🗑️ Order deleted:', payload);
+          setOrders(prev => prev.filter(order => order.id !== payload.old.id));
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        console.log('Orders realtime subscription status:', status);
+      });
 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [fetchOrders, filterByUser, toast]);
+  }, [fetchOrders, filterByUser, shopId, toast]);
 
   const updateOrderStatus = async (orderId: string, status: Order['status']) => {
     const { error } = await supabaseWithClerk
