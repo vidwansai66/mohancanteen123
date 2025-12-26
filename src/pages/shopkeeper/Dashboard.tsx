@@ -18,7 +18,7 @@ const ShopkeeperDashboard = () => {
   const { shopStatus, updateShopStatus } = useShopStatus();
 
   const activeOrders = orders.filter((o) => !['completed', 'rejected'].includes(o.status));
-  const completedOrders = orders.filter((o) => o.status === 'completed').slice(0, 10);
+  const completedOrders = orders.filter((o) => o.status === 'completed').slice(0, 40);
 
   const handleStatusChange = async (orderId: string, status: Order['status']) => {
     const success = await updateOrderStatus(orderId, status);

@@ -12,7 +12,7 @@ const StudentOrders = () => {
   const [cartOpen, setCartOpen] = useState(false);
 
   const activeOrders = orders.filter((o) => !['completed', 'rejected'].includes(o.status));
-  const pastOrders = orders.filter((o) => ['completed', 'rejected'].includes(o.status));
+  const pastOrders = orders.filter((o) => ['completed', 'rejected'].includes(o.status)).slice(0, 10);
 
   return (
     <div className="min-h-screen bg-background pb-20">

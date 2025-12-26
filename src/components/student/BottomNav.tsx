@@ -1,4 +1,4 @@
-import { Home, ClipboardList, User } from 'lucide-react';
+import { Home, ClipboardList, Heart } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { useCartStore } from '@/stores/cartStore';
@@ -16,6 +16,7 @@ const BottomNav = ({ onCartClick }: BottomNavProps) => {
   const navItems = [
     { icon: Home, label: 'Home', path: '/student' },
     { icon: ClipboardList, label: 'Orders', path: '/student/orders' },
+    { icon: Heart, label: 'Favourites', path: '/student/favourites' },
   ];
 
   return (
