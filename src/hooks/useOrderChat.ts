@@ -51,20 +51,42 @@ export const useOrderChat = (orderId: string | null) => {
       .on(
         'postgres_changes',
         {
-          event: '*',
+          event: 'INSERT',
           schema: 'public',
           table: 'order_messages',
           filter: `order_id=eq.${orderId}`,
         },
         (payload) => {
-          if (payload.eventType === 'INSERT') {
-            setMessages((prev) => [...prev, payload.new as OrderMessage]);
-          } else if (payload.eventType === 'DELETE') {
-            setMessages((prev) => prev.filter((m) => m.id !== payload.old.id));
-          }
+          console.log('💬 New message received:', payload);
+          const newMsg = payload.new as OrderMessage;
+          setMessages((prev) => {
+            // Avoid duplicates
+            if (prev.some(m => m.id === newMsg.id)) return prev;
+            return [...prev, newMsg];
+          });
+          // Play sound for new message
+          try {
+            const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2354/2354-preview.mp3');
+            audio.volume = 0.3;
+            audio.play().catch(() => {});
+          } catch (e) {}
         }
       )
-      .subscribe();
+      .on(
+        'postgres_changes',
+        {
+          event: 'DELETE',
+          schema: 'public',
+          table: 'order_messages',
+          filter: `order_id=eq.${orderId}`,
+        },
+        (payload) => {
+          setMessages((prev) => prev.filter((m) => m.id !== payload.old.id));
+        }
+      )
+      .subscribe((status) => {
+        console.log('Chat realtime subscription status:', status);
+      });
 
     return () => {
       supabase.removeChannel(channel);
