@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useUser } from '@clerk/clerk-react';
 import { useSupabaseWithClerk } from '@/hooks/useSupabaseWithClerk';
 import { supabase } from '@/integrations/supabase/client';
-import { useToast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 
 export interface OrderMessage {
   id: string;
@@ -16,10 +16,15 @@ export interface OrderMessage {
 export const useOrderChat = (orderId: string | null) => {
   const { user } = useUser();
   const supabaseWithClerk = useSupabaseWithClerk();
-  const { toast } = useToast();
   const [messages, setMessages] = useState<OrderMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  const userIdRef = useRef(user?.id);
+
+  // Keep userIdRef in sync
+  useEffect(() => {
+    userIdRef.current = user?.id;
+  }, [user?.id]);
 
   const fetchMessages = useCallback(async () => {
     if (!orderId) return;
@@ -56,7 +61,7 @@ export const useOrderChat = (orderId: string | null) => {
         const newMsg = payload.payload as OrderMessage;
         
         // Don't add if it's our own message (already added optimistically)
-        if (newMsg.sender_user_id === user?.id) return;
+        if (newMsg.sender_user_id === userIdRef.current) return;
         
         setMessages((prev) => {
           // Avoid duplicates
@@ -69,11 +74,12 @@ export const useOrderChat = (orderId: string | null) => {
           const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2354/2354-preview.mp3');
           audio.volume = 0.3;
           audio.play().catch(() => {});
-        } catch (e) {}
+        } catch (e) {
+          // Ignore audio errors
+        }
         
-        // Show toast notification
-        toast({
-          title: '💬 New Message',
+        // Show toast notification using sonner (safe to call outside React render)
+        toast.info('💬 New Message', {
           description: newMsg.message.slice(0, 50) + (newMsg.message.length > 50 ? '...' : ''),
         });
       })
@@ -89,16 +95,9 @@ export const useOrderChat = (orderId: string | null) => {
         channelRef.current = null;
       }
     };
-  }, [orderId, user?.id, toast]);
-
-  // Re-fetch when orderId changes
-  useEffect(() => {
-    if (orderId) {
-      fetchMessages();
-    }
   }, [orderId, fetchMessages]);
 
-  const sendMessage = async (message: string, senderRole: 'student' | 'shopkeeper') => {
+  const sendMessage = useCallback(async (message: string, senderRole: 'student' | 'shopkeeper') => {
     if (!orderId || !user || !message.trim()) return false;
 
     const tempId = crypto.randomUUID();
@@ -125,7 +124,7 @@ export const useOrderChat = (orderId: string | null) => {
       console.error('Error sending message:', error);
       // Remove optimistic message on error
       setMessages((prev) => prev.filter(m => m.id !== tempId));
-      toast({ title: 'Failed to send message', variant: 'destructive' });
+      toast.error('Failed to send message');
       return false;
     }
 
@@ -143,7 +142,7 @@ export const useOrderChat = (orderId: string | null) => {
     }
 
     return true;
-  };
+  }, [orderId, user, supabaseWithClerk]);
 
   return { messages, isLoading, sendMessage, refetch: fetchMessages };
 };
