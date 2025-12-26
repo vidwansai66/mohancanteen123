@@ -90,8 +90,8 @@ const StudentFavourites = () => {
                       </Button>
                       <Button
                         size="sm"
-                        disabled={!fav.menu_item.in_stock}
-                        onClick={() => handleAddToCart(fav.menu_item!)}
+                        disabled={!fav.menu_item.in_stock || !fav.menu_item.shop_id}
+                        onClick={() => fav.menu_item?.shop_id && handleAddToCart(fav.menu_item, fav.menu_item.shop_id)}
                       >
                         <ShoppingCart className="w-4 h-4 mr-1" />
                         Add

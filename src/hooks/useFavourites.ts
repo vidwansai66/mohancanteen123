@@ -16,6 +16,7 @@ export interface FavouriteItem {
     category: string;
     image_url: string | null;
     in_stock: boolean;
+    shop_id: string | null;
   };
 }
 
@@ -42,7 +43,7 @@ export const useFavourites = () => {
       .from('favourite_items')
       .select(`
         *,
-        menu_item:menu_items (id, name, price, category, image_url, in_stock)
+        menu_item:menu_items (id, name, price, category, image_url, in_stock, shop_id)
       `)
       .eq('user_id', user.id)
       .order('created_at', { ascending: false });
