@@ -28,7 +28,7 @@ const ShopkeeperDashboard = () => {
   const [fallbackScreenshotUrls, setFallbackScreenshotUrls] = useState<Record<string, string>>({});
 
   const activeOrders = orders.filter((o) => !['completed', 'rejected', 'cancelled'].includes(o.status));
-  const completedOrders = orders.filter((o) => o.status === 'completed').slice(0, 40);
+  const completedOrders = orders.filter((o) => o.status === 'completed').slice(0, 10);
 
   useEffect(() => {
     const missing = orders

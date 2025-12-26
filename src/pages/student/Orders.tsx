@@ -49,7 +49,7 @@ const StudentOrders = () => {
   }, [orders, cancelPendingOrder, toast]);
 
   const activeOrders = orders.filter((o) => !['completed', 'rejected', 'cancelled'].includes(o.status));
-  const pastOrders = orders.filter((o) => ['completed', 'rejected', 'cancelled'].includes(o.status)).slice(0, 20);
+  const pastOrders = orders.filter((o) => ['completed', 'rejected', 'cancelled'].includes(o.status)).slice(0, 10);
 
   const handlePayNow = (order: Order) => {
     setPaymentOrder(order);
