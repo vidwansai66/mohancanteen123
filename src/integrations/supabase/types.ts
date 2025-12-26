@@ -168,6 +168,7 @@ export type Database = {
         Row: {
           created_at: string
           id: string
+          is_read: boolean
           message: string
           order_id: string
           sender_role: string
@@ -176,6 +177,7 @@ export type Database = {
         Insert: {
           created_at?: string
           id?: string
+          is_read?: boolean
           message: string
           order_id: string
           sender_role: string
@@ -184,6 +186,7 @@ export type Database = {
         Update: {
           created_at?: string
           id?: string
+          is_read?: boolean
           message?: string
           order_id?: string
           sender_role?: string
@@ -398,6 +401,10 @@ export type Database = {
           _user_id: string
         }
         Returns: boolean
+      }
+      mark_messages_as_read: {
+        Args: { p_order_id: string; p_reader_role: string }
+        Returns: undefined
       }
     }
     Enums: {
