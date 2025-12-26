@@ -108,6 +108,38 @@ const ShopkeeperDashboard = () => {
                         Confirm Payment (optional)
                       </Button>
                     </div>
+                  ) : order.status === 'accepted' && order.payment_status === 'paid' ? (
+                    // Payment submitted - show verification details
+                    <div className="space-y-3">
+                      <div className="p-3 bg-primary/10 rounded-lg space-y-2">
+                        <p className="text-sm font-medium text-primary">Payment submitted</p>
+                        {(order as any).utr_number && (
+                          <p className="text-xs text-muted-foreground">UTR: {(order as any).utr_number}</p>
+                        )}
+                        {(order as any).payment_screenshot_url && (
+                          <a 
+                            href={(order as any).payment_screenshot_url} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="text-xs text-primary underline"
+                          >
+                            View Screenshot
+                          </a>
+                        )}
+                      </div>
+                      <Select 
+                        value={order.status} 
+                        onValueChange={(v) => handleStatusChange(order.id, v as Order['status'])}
+                      >
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="accepted">Accepted</SelectItem>
+                          <SelectItem value="preparing">Preparing</SelectItem>
+                          <SelectItem value="ready">Ready</SelectItem>
+                          <SelectItem value="completed">Completed</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
                   ) : (
                     <Select 
                       value={order.status} 

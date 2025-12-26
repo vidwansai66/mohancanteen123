@@ -1,28 +1,50 @@
-import { useState } from 'react';
-import { useOrders } from '@/hooks/useOrders';
+import { useState, useEffect } from 'react';
+import { useOrders, Order } from '@/hooks/useOrders';
+import { useFavourites } from '@/hooks/useFavourites';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import OrderCard from '@/components/student/OrderCard';
 import BottomNav from '@/components/student/BottomNav';
 import CartDrawer from '@/components/student/CartDrawer';
+import UPIPaymentDialog from '@/components/student/UPIPaymentDialog';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ClipboardList } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { differenceInHours } from 'date-fns';
 
 const StudentOrders = () => {
   const { toast } = useToast();
-  const { orders, isLoading, updateOrderStatus, updatePaymentStatus } = useOrders(true);
+  const { orders, isLoading, updateOrderStatus, refetch } = useOrders(true);
+  const { isOrderFavourite, addFavouriteOrder, removeFavouriteOrder } = useFavourites();
   const [cartOpen, setCartOpen] = useState(false);
+  const [paymentOrder, setPaymentOrder] = useState<Order | null>(null);
+
+  // Auto-cancel orders pending for more than 5 hours
+  useEffect(() => {
+    const checkAutoCancelOrders = async () => {
+      const pendingOrders = orders.filter(o => o.status === 'pending');
+      for (const order of pendingOrders) {
+        const hoursPending = differenceInHours(new Date(), new Date(order.created_at));
+        if (hoursPending >= 5) {
+          await updateOrderStatus(order.id, 'cancelled');
+          toast({ 
+            title: 'Order auto-cancelled', 
+            description: `Order #${order.id.slice(0, 8).toUpperCase()} was cancelled after 5 hours`,
+            variant: 'destructive'
+          });
+        }
+      }
+    };
+    
+    if (orders.length > 0) {
+      checkAutoCancelOrders();
+    }
+  }, [orders]);
 
   const activeOrders = orders.filter((o) => !['completed', 'rejected', 'cancelled'].includes(o.status));
   const pastOrders = orders.filter((o) => ['completed', 'rejected', 'cancelled'].includes(o.status)).slice(0, 10);
 
-  const handlePayNow = async (orderId: string) => {
-    const ok = await updatePaymentStatus(orderId, 'paid');
-    if (ok) {
-      toast({ title: 'Payment marked as paid' });
-    } else {
-      toast({ title: 'Payment failed', variant: 'destructive' });
-    }
+  const handlePayNow = (order: Order) => {
+    setPaymentOrder(order);
   };
 
   const handleCancelOrder = async (orderId: string) => {
@@ -31,6 +53,14 @@ const StudentOrders = () => {
       toast({ title: 'Order cancelled' });
     } else {
       toast({ title: 'Cancel failed', variant: 'destructive' });
+    }
+  };
+
+  const handleToggleFavourite = async (orderId: string) => {
+    if (isOrderFavourite(orderId)) {
+      await removeFavouriteOrder(orderId);
+    } else {
+      await addFavouriteOrder(orderId);
     }
   };
 
@@ -61,7 +91,9 @@ const StudentOrders = () => {
                   key={order.id}
                   order={order}
                   onCancel={order.status === 'pending' ? () => handleCancelOrder(order.id) : undefined}
-                  onPayNow={order.status === 'accepted' && order.payment_status === 'unpaid' ? () => handlePayNow(order.id) : undefined}
+                  onPayNow={order.status === 'accepted' && order.payment_status === 'unpaid' ? () => handlePayNow(order) : undefined}
+                  isFavourite={isOrderFavourite(order.id)}
+                  onToggleFavourite={() => handleToggleFavourite(order.id)}
                 />
               ))
             )}
@@ -73,7 +105,14 @@ const StudentOrders = () => {
                 <p className="text-muted-foreground">No past orders</p>
               </div>
             ) : (
-              pastOrders.map((order) => <OrderCard key={order.id} order={order} />)
+              pastOrders.map((order) => (
+                <OrderCard 
+                  key={order.id} 
+                  order={order}
+                  isFavourite={isOrderFavourite(order.id)}
+                  onToggleFavourite={() => handleToggleFavourite(order.id)}
+                />
+              ))
             )}
           </TabsContent>
         </Tabs>
@@ -81,6 +120,13 @@ const StudentOrders = () => {
 
       <BottomNav onCartClick={() => setCartOpen(true)} />
       <CartDrawer open={cartOpen} onOpenChange={setCartOpen} />
+      
+      <UPIPaymentDialog 
+        order={paymentOrder}
+        open={!!paymentOrder}
+        onOpenChange={(open) => !open && setPaymentOrder(null)}
+        onPaymentSubmitted={refetch}
+      />
     </div>
   );
 };
