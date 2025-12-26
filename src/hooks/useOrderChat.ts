@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useUser } from '@clerk/clerk-react';
-import { useSupabaseWithClerk } from '@/hooks/useSupabaseWithClerk';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
@@ -15,33 +14,45 @@ export interface OrderMessage {
 
 export const useOrderChat = (orderId: string | null) => {
   const { user } = useUser();
-  const supabaseWithClerk = useSupabaseWithClerk();
   const [messages, setMessages] = useState<OrderMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
-  const userIdRef = useRef(user?.id);
+  const userIdRef = useRef<string | undefined>(undefined);
+  const orderIdRef = useRef<string | null>(null);
 
-  // Keep userIdRef in sync
+  // Keep refs in sync
   useEffect(() => {
     userIdRef.current = user?.id;
   }, [user?.id]);
 
-  const fetchMessages = useCallback(async () => {
-    if (!orderId) return;
-    setIsLoading(true);
-    const { data, error } = await supabaseWithClerk
-      .from('order_messages')
-      .select('*')
-      .eq('order_id', orderId)
-      .order('created_at', { ascending: true });
+  useEffect(() => {
+    orderIdRef.current = orderId;
+  }, [orderId]);
 
-    if (error) {
-      console.error('Error fetching messages:', error);
-    } else {
+  const fetchMessages = useCallback(async (targetOrderId: string, userId: string) => {
+    setIsLoading(true);
+    
+    // Use fetch with custom headers for RLS
+    const response = await fetch(
+      `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/order_messages?order_id=eq.${targetOrderId}&order=created_at.asc`,
+      {
+        headers: {
+          'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+          'x-clerk-user-id': userId,
+          'Content-Type': 'application/json',
+        },
+      }
+    );
+
+    if (response.ok) {
+      const data = await response.json();
       setMessages(data as OrderMessage[]);
+    } else {
+      console.error('Error fetching messages:', await response.text());
     }
     setIsLoading(false);
-  }, [orderId, supabaseWithClerk]);
+  }, []);
 
   useEffect(() => {
     if (!orderId) {
@@ -49,9 +60,11 @@ export const useOrderChat = (orderId: string | null) => {
       return;
     }
 
-    fetchMessages();
+    if (user?.id) {
+      fetchMessages(orderId, user.id);
+    }
 
-    // Use broadcast channel for instant message delivery (bypasses RLS filtering on realtime)
+    // Use broadcast channel for instant message delivery
     const channelName = `chat-${orderId}`;
     const channel = supabase.channel(channelName);
     
@@ -64,21 +77,19 @@ export const useOrderChat = (orderId: string | null) => {
         if (newMsg.sender_user_id === userIdRef.current) return;
         
         setMessages((prev) => {
-          // Avoid duplicates
           if (prev.some(m => m.id === newMsg.id)) return prev;
           return [...prev, newMsg];
         });
         
-        // Play notification sound for incoming message
+        // Play notification sound
         try {
           const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2354/2354-preview.mp3');
           audio.volume = 0.3;
           audio.play().catch(() => {});
         } catch (e) {
-          // Ignore audio errors
+          // Ignore
         }
         
-        // Show toast notification using sonner (safe to call outside React render)
         toast.info('💬 New Message', {
           description: newMsg.message.slice(0, 50) + (newMsg.message.length > 50 ? '...' : ''),
         });
@@ -95,43 +106,61 @@ export const useOrderChat = (orderId: string | null) => {
         channelRef.current = null;
       }
     };
-  }, [orderId, fetchMessages]);
+  }, [orderId, user?.id, fetchMessages]);
 
   const sendMessage = useCallback(async (message: string, senderRole: 'student' | 'shopkeeper') => {
-    if (!orderId || !user || !message.trim()) return false;
+    const currentOrderId = orderIdRef.current;
+    const currentUserId = userIdRef.current;
+    
+    if (!currentOrderId || !currentUserId || !message.trim()) return false;
 
     const tempId = crypto.randomUUID();
     const newMessage: OrderMessage = {
       id: tempId,
-      order_id: orderId,
-      sender_user_id: user.id,
+      order_id: currentOrderId,
+      sender_user_id: currentUserId,
       sender_role: senderRole,
       message: message.trim(),
       created_at: new Date().toISOString(),
     };
 
-    // Optimistically add message to UI immediately
+    // Optimistically add message
     setMessages((prev) => [...prev, newMessage]);
 
-    const { data, error } = await supabaseWithClerk.from('order_messages').insert({
-      order_id: orderId,
-      sender_user_id: user.id,
-      sender_role: senderRole,
-      message: message.trim(),
-    }).select().single();
+    // Insert via REST API with custom headers
+    const response = await fetch(
+      `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/order_messages`,
+      {
+        method: 'POST',
+        headers: {
+          'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+          'x-clerk-user-id': currentUserId,
+          'Content-Type': 'application/json',
+          'Prefer': 'return=representation',
+        },
+        body: JSON.stringify({
+          order_id: currentOrderId,
+          sender_user_id: currentUserId,
+          sender_role: senderRole,
+          message: message.trim(),
+        }),
+      }
+    );
 
-    if (error) {
-      console.error('Error sending message:', error);
-      // Remove optimistic message on error
+    if (!response.ok) {
+      console.error('Error sending message:', await response.text());
       setMessages((prev) => prev.filter(m => m.id !== tempId));
       toast.error('Failed to send message');
       return false;
     }
 
+    const [data] = await response.json();
+
     // Update with real message data
     setMessages((prev) => prev.map(m => m.id === tempId ? (data as OrderMessage) : m));
 
-    // Broadcast the message to other clients
+    // Broadcast to other clients
     if (channelRef.current) {
       await channelRef.current.send({
         type: 'broadcast',
@@ -142,7 +171,13 @@ export const useOrderChat = (orderId: string | null) => {
     }
 
     return true;
-  }, [orderId, user, supabaseWithClerk]);
+  }, []);
 
-  return { messages, isLoading, sendMessage, refetch: fetchMessages };
+  const refetch = useCallback(() => {
+    if (orderIdRef.current && userIdRef.current) {
+      fetchMessages(orderIdRef.current, userIdRef.current);
+    }
+  }, [fetchMessages]);
+
+  return { messages, isLoading, sendMessage, refetch };
 };
