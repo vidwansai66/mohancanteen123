@@ -77,10 +77,14 @@ export const useFavourites = () => {
         order: fav.order ? {
           id: fav.order.id,
           user_id: fav.order.user_id,
+          shop_id: (fav.order as any).shop_id || null,
           status: fav.order.status as Order['status'],
           payment_status: ((fav.order as any).payment_status || 'unpaid') as Order['payment_status'],
           total: fav.order.total,
           notes: fav.order.notes,
+          utr_number: (fav.order as any).utr_number || null,
+          payment_screenshot_url: (fav.order as any).payment_screenshot_url || null,
+          payment_verified: (fav.order as any).payment_verified || null,
           created_at: fav.order.created_at,
           updated_at: fav.order.updated_at,
           order_items: fav.order.order_items as OrderItem[]

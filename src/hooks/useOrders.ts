@@ -14,10 +14,14 @@ export interface OrderItem {
 export interface Order {
   id: string;
   user_id: string;
+  shop_id: string | null;
   status: 'pending' | 'accepted' | 'rejected' | 'cancelled' | 'preparing' | 'ready' | 'completed';
   payment_status: 'unpaid' | 'paid';
   total: number;
   notes: string | null;
+  utr_number: string | null;
+  payment_screenshot_url: string | null;
+  payment_verified: boolean | null;
   created_at: string;
   updated_at: string;
   order_items?: OrderItem[];
@@ -25,9 +29,14 @@ export interface Order {
     full_name: string | null;
     email: string | null;
   };
+  shop?: {
+    shop_name: string;
+    upi_id: string | null;
+    upi_name: string | null;
+  };
 }
 
-export const useOrders = (filterByUser = true) => {
+export const useOrders = (filterByUser = true, shopId?: string) => {
   const { user } = useUser();
   const { toast } = useToast();
   const [orders, setOrders] = useState<Order[]>([]);
@@ -46,6 +55,10 @@ export const useOrders = (filterByUser = true) => {
       query = query.eq('user_id', user.id);
     }
 
+    if (shopId) {
+      query = query.eq('shop_id', shopId);
+    }
+
     const { data, error } = await query;
 
     if (error) {
@@ -60,19 +73,41 @@ export const useOrders = (filterByUser = true) => {
 
       const profileMap = new Map(profiles?.map(p => [p.user_id, p]) || []);
 
+      // Fetch shops separately
+      const shopIds = [...new Set(data?.map(o => o.shop_id).filter(Boolean) || [])] as string[];
+      let shopMap = new Map<string, { id: string; shop_name: string; upi_id: string | null; upi_name: string | null }>();
+      
+      if (shopIds.length > 0) {
+        const { data: shops } = await supabase
+          .from('shops')
+          .select('id, shop_name, upi_id, upi_name')
+          .in('id', shopIds);
+        
+        shopMap = new Map((shops || []).map(s => [s.id, s]));
+      }
+
       const mappedOrders: Order[] = (data || []).map(order => ({
         id: order.id,
         user_id: order.user_id,
+        shop_id: order.shop_id,
         status: order.status as Order['status'],
         payment_status: (order.payment_status || 'unpaid') as Order['payment_status'],
         total: order.total,
         notes: order.notes,
+        utr_number: order.utr_number,
+        payment_screenshot_url: order.payment_screenshot_url,
+        payment_verified: order.payment_verified,
         created_at: order.created_at,
         updated_at: order.updated_at,
         order_items: order.order_items as OrderItem[],
         profile: profileMap.get(order.user_id) ? {
           full_name: profileMap.get(order.user_id)?.full_name || null,
           email: profileMap.get(order.user_id)?.email || null
+        } : undefined,
+        shop: order.shop_id && shopMap.get(order.shop_id) ? {
+          shop_name: shopMap.get(order.shop_id)?.shop_name || '',
+          upi_id: shopMap.get(order.shop_id)?.upi_id || null,
+          upi_name: shopMap.get(order.shop_id)?.upi_name || null
         } : undefined
       }));
       
@@ -127,7 +162,7 @@ export const useOrders = (filterByUser = true) => {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [user, filterByUser]);
+  }, [user, filterByUser, shopId]);
 
   const updateOrderStatus = async (orderId: string, status: Order['status']) => {
     const { error } = await supabase

@@ -1,6 +1,5 @@
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
-import { Separator } from '@/components/ui/separator';
 import { useCartStore, CartItem } from '@/stores/cartStore';
 import { Minus, Plus, Trash2, ShoppingBag } from 'lucide-react';
 import { useState } from 'react';
@@ -13,17 +12,22 @@ interface CartDrawerProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   shopOpen?: boolean;
+  shopId?: string;
 }
 
-const CartDrawer = ({ open, onOpenChange, shopOpen = true }: CartDrawerProps) => {
+const CartDrawer = ({ open, onOpenChange, shopOpen = true, shopId }: CartDrawerProps) => {
   const { user } = useUser();
   const { toast } = useToast();
-  const { items, updateQuantity, removeItem, clearCart, getTotalPrice } = useCartStore();
+  const { items, updateQuantity, removeItem, clearShopCart, getShopItems, getShopTotalPrice, getTotalPrice } = useCartStore();
   const [notes, setNotes] = useState('');
   const [isPlacing, setIsPlacing] = useState(false);
 
+  // If shopId is provided, only show items from that shop
+  const displayItems = shopId ? getShopItems(shopId) : items;
+  const totalPrice = shopId ? getShopTotalPrice(shopId) : getTotalPrice();
+
   const handlePlaceOrder = async () => {
-    if (!user || items.length === 0) return;
+    if (!user || displayItems.length === 0 || !shopId) return;
 
     setIsPlacing(true);
     try {
@@ -32,7 +36,8 @@ const CartDrawer = ({ open, onOpenChange, shopOpen = true }: CartDrawerProps) =>
         .from('orders')
         .insert({
           user_id: user.id,
-          total: getTotalPrice(),
+          shop_id: shopId,
+          total: totalPrice,
           notes: notes || null,
           status: 'pending',
         })
@@ -42,7 +47,7 @@ const CartDrawer = ({ open, onOpenChange, shopOpen = true }: CartDrawerProps) =>
       if (orderError) throw orderError;
 
       // Create order items
-      const orderItems = items.map((item) => ({
+      const orderItems = displayItems.map((item) => ({
         order_id: order.id,
         menu_item_id: item.id,
         quantity: item.quantity,
@@ -56,7 +61,7 @@ const CartDrawer = ({ open, onOpenChange, shopOpen = true }: CartDrawerProps) =>
 
       if (itemsError) throw itemsError;
 
-      clearCart();
+      clearShopCart(shopId);
       setNotes('');
       onOpenChange(false);
 
@@ -86,7 +91,7 @@ const CartDrawer = ({ open, onOpenChange, shopOpen = true }: CartDrawerProps) =>
           </SheetTitle>
         </SheetHeader>
 
-        {items.length === 0 ? (
+        {displayItems.length === 0 ? (
           <div className="flex-1 flex flex-col items-center justify-center text-center py-8">
             <ShoppingBag className="w-16 h-16 text-muted-foreground mb-4" />
             <h3 className="font-medium text-foreground mb-2">Your cart is empty</h3>
@@ -97,7 +102,7 @@ const CartDrawer = ({ open, onOpenChange, shopOpen = true }: CartDrawerProps) =>
         ) : (
           <>
             <div className="flex-1 overflow-auto py-4 space-y-3">
-              {items.map((item) => (
+              {displayItems.map((item) => (
                 <CartItemRow
                   key={item.id}
                   item={item}
@@ -118,14 +123,14 @@ const CartDrawer = ({ open, onOpenChange, shopOpen = true }: CartDrawerProps) =>
 
               <div className="flex items-center justify-between text-lg font-bold">
                 <span>Total</span>
-                <span className="text-primary">₹{getTotalPrice().toFixed(0)}</span>
+                <span className="text-primary">₹{totalPrice.toFixed(0)}</span>
               </div>
 
               <Button
                 className="w-full"
                 size="lg"
                 onClick={handlePlaceOrder}
-                disabled={isPlacing || !shopOpen}
+                disabled={isPlacing || !shopOpen || !shopId}
               >
                 {isPlacing ? 'Placing Order...' : shopOpen ? 'Place Order' : 'Shop is Closed'}
               </Button>

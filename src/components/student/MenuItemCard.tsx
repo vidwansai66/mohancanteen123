@@ -10,13 +10,14 @@ import { cn } from '@/lib/utils';
 interface MenuItemCardProps {
   item: MenuItem;
   disabled?: boolean;
+  shopId: string;
 }
 
-const MenuItemCard = ({ item, disabled }: MenuItemCardProps) => {
+const MenuItemCard = ({ item, disabled, shopId }: MenuItemCardProps) => {
   const { items, addItem, updateQuantity } = useCartStore();
   const { addFavouriteItem, removeFavouriteItem, isItemFavourite } = useFavourites();
 
-  const cartItem = items.find((i) => i.id === item.id);
+  const cartItem = items.find((i) => i.id === item.id && i.shop_id === shopId);
   const quantity = cartItem?.quantity || 0;
   const isFavourite = isItemFavourite(item.id);
 
@@ -27,6 +28,7 @@ const MenuItemCard = ({ item, disabled }: MenuItemCardProps) => {
       name: item.name,
       price: Number(item.price),
       image_url: item.image_url || undefined,
+      shop_id: shopId,
     });
   };
 

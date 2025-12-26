@@ -16,22 +16,25 @@ const StudentFavourites = () => {
   const [cartOpen, setCartOpen] = useState(false);
   const addItem = useCartStore((state) => state.addItem);
 
-  const handleAddToCart = (item: NonNullable<typeof favouriteItems[0]['menu_item']>) => {
+  const handleAddToCart = (item: NonNullable<typeof favouriteItems[0]['menu_item']>, shopId: string) => {
     addItem({
       id: item.id,
       name: item.name,
       price: item.price,
-      image_url: item.image_url || undefined
+      image_url: item.image_url || undefined,
+      shop_id: shopId
     });
   };
 
   const handleReorder = (order: NonNullable<typeof favouriteOrders[0]['order']>) => {
+    if (!order.shop_id) return;
     order.order_items?.forEach(item => {
       for (let i = 0; i < item.quantity; i++) {
         addItem({
           id: item.menu_item_id,
           name: item.item_name,
-          price: item.price
+          price: item.price,
+          shop_id: order.shop_id!
         });
       }
     });
