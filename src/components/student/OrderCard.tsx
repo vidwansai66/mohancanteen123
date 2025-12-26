@@ -2,7 +2,7 @@ import { Order } from '@/hooks/useOrders';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { format } from 'date-fns';
-import { Clock, CheckCircle, XCircle, Package, ChefHat } from 'lucide-react';
+import { Clock, CheckCircle, XCircle, Package, ChefHat, CreditCard } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface OrderCardProps {
@@ -20,6 +20,7 @@ const statusConfig: Record<Order['status'], { label: string; color: string; icon
 
 const OrderCard = ({ order }: OrderCardProps) => {
   const config = statusConfig[order.status];
+  const showPaymentStatus = order.status === 'accepted' && order.payment_status === 'unpaid';
 
   return (
     <Card className="p-4">
@@ -32,16 +33,32 @@ const OrderCard = ({ order }: OrderCardProps) => {
             Order #{order.id.slice(0, 8).toUpperCase()}
           </p>
         </div>
-        <Badge className={cn('flex items-center gap-1', config.color)}>
-          {config.icon}
-          {config.label}
-        </Badge>
+        <div className="flex flex-col gap-1 items-end">
+          <Badge className={cn('flex items-center gap-1', config.color)}>
+            {config.icon}
+            {config.label}
+          </Badge>
+          {showPaymentStatus && (
+            <Badge variant="destructive" className="flex items-center gap-1">
+              <CreditCard className="w-3 h-3" />
+              Pay Now
+            </Badge>
+          )}
+        </div>
       </div>
 
       {/* Order Progress */}
       {order.status !== 'rejected' && order.status !== 'completed' && (
         <div className="mb-4">
-          <OrderProgress status={order.status} />
+          <OrderProgress status={order.status} paymentPending={showPaymentStatus} />
+        </div>
+      )}
+
+      {/* Payment Notice */}
+      {showPaymentStatus && (
+        <div className="mb-3 p-3 bg-destructive/10 rounded-lg text-destructive text-sm">
+          <p className="font-medium">Payment Required</p>
+          <p className="text-xs mt-1">Please pay ₹{Number(order.total).toFixed(0)} at the counter to continue your order.</p>
         </div>
       )}
 
@@ -71,7 +88,7 @@ const OrderCard = ({ order }: OrderCardProps) => {
   );
 };
 
-const OrderProgress = ({ status }: { status: Order['status'] }) => {
+const OrderProgress = ({ status, paymentPending }: { status: Order['status']; paymentPending?: boolean }) => {
   const steps = ['pending', 'accepted', 'preparing', 'ready'];
   const currentIndex = steps.indexOf(status);
 
@@ -82,7 +99,9 @@ const OrderProgress = ({ status }: { status: Order['status'] }) => {
           <div
             className={cn(
               'h-1 flex-1 rounded-full transition-colors',
-              index <= currentIndex ? 'bg-primary' : 'bg-muted'
+              index < currentIndex ? 'bg-primary' : 
+              index === currentIndex && paymentPending ? 'bg-destructive animate-pulse' :
+              index === currentIndex ? 'bg-primary' : 'bg-muted'
             )}
           />
         </div>

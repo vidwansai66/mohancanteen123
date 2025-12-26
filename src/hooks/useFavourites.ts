@@ -78,6 +78,7 @@ export const useFavourites = () => {
           id: fav.order.id,
           user_id: fav.order.user_id,
           status: fav.order.status as Order['status'],
+          payment_status: ((fav.order as any).payment_status || 'unpaid') as Order['payment_status'],
           total: fav.order.total,
           notes: fav.order.notes,
           created_at: fav.order.created_at,

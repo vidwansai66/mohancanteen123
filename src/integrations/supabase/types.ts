@@ -158,6 +158,7 @@ export type Database = {
           created_at: string
           id: string
           notes: string | null
+          payment_status: string
           status: string
           total: number
           updated_at: string
@@ -167,6 +168,7 @@ export type Database = {
           created_at?: string
           id?: string
           notes?: string | null
+          payment_status?: string
           status?: string
           total: number
           updated_at?: string
@@ -176,6 +178,7 @@ export type Database = {
           created_at?: string
           id?: string
           notes?: string | null
+          payment_status?: string
           status?: string
           total?: number
           updated_at?: string
