@@ -157,35 +157,51 @@ const ShopkeeperDashboard = () => {
                       <Button size="sm" variant="destructive" onClick={() => handleStatusChange(order.id, 'rejected')}><X className="w-4 h-4 mr-1" />Reject</Button>
                     </div>
                   ) : order.status === 'accepted' && order.payment_status === 'unpaid' ? (
-                    // Waiting for payment
+                    // Waiting for payment - check if student submitted UTR/screenshot
                     <div className="space-y-3">
-                      <div className="flex items-center gap-2 p-3 bg-destructive/10 rounded-lg text-destructive">
-                        <AlertCircle className="w-4 h-4" />
-                        <span className="text-sm font-medium">Waiting for student payment</span>
-                      </div>
-                      <Button size="sm" onClick={() => handlePaymentConfirm(order.id)} className="w-full" variant="outline">
-                        <CreditCard className="w-4 h-4 mr-2" />
-                        Confirm Payment Manually
-                      </Button>
+                      {(order.utr_number || order.payment_screenshot_url) ? (
+                        // Student submitted payment proof - shopkeeper needs to verify
+                        <>
+                          <div className="p-3 bg-yellow-500/10 rounded-lg space-y-2">
+                            <p className="text-sm font-medium text-yellow-600">Payment proof submitted - Verify & Confirm</p>
+                            {order.utr_number && (
+                              <p className="text-xs text-muted-foreground">UTR: <span className="font-mono">{order.utr_number}</span></p>
+                            )}
+                            {order.payment_screenshot_url && (
+                              <a 
+                                href={order.payment_screenshot_url} 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                className="text-xs text-primary underline block"
+                              >
+                                View Payment Screenshot
+                              </a>
+                            )}
+                          </div>
+                          <Button size="sm" onClick={() => handlePaymentConfirm(order.id)} className="w-full">
+                            <Check className="w-4 h-4 mr-2" />
+                            Confirm Payment Received
+                          </Button>
+                        </>
+                      ) : (
+                        // No payment proof yet
+                        <>
+                          <div className="flex items-center gap-2 p-3 bg-destructive/10 rounded-lg text-destructive">
+                            <AlertCircle className="w-4 h-4" />
+                            <span className="text-sm font-medium">Waiting for student to pay</span>
+                          </div>
+                          <Button size="sm" onClick={() => handlePaymentConfirm(order.id)} className="w-full" variant="outline">
+                            <CreditCard className="w-4 h-4 mr-2" />
+                            Confirm Payment (Cash/Manual)
+                          </Button>
+                        </>
+                      )}
                     </div>
                   ) : order.status === 'accepted' && order.payment_status === 'paid' ? (
-                    // Payment submitted - show verification details
+                    // Payment verified - can proceed with order
                     <div className="space-y-3">
-                      <div className="p-3 bg-primary/10 rounded-lg space-y-2">
-                        <p className="text-sm font-medium text-primary">Payment submitted</p>
-                        {order.utr_number && (
-                          <p className="text-xs text-muted-foreground">UTR: {order.utr_number}</p>
-                        )}
-                        {order.payment_screenshot_url && (
-                          <a 
-                            href={order.payment_screenshot_url} 
-                            target="_blank" 
-                            rel="noopener noreferrer"
-                            className="text-xs text-primary underline"
-                          >
-                            View Screenshot
-                          </a>
-                        )}
+                      <div className="p-3 bg-green-500/10 rounded-lg">
+                        <p className="text-sm font-medium text-green-600">✓ Payment Verified</p>
                       </div>
                       <Select 
                         value={order.status} 

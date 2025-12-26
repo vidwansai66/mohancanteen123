@@ -79,11 +79,10 @@ const UPIPaymentDialog = ({ order, open, onOpenChange, onPaymentSubmitted }: UPI
         screenshotUrl = urlData.publicUrl;
       }
 
-      // Update order with verification details
+      // Update order with verification details - payment_status stays 'unpaid' until shopkeeper verifies
       const { error } = await supabase
         .from('orders')
         .update({
-          payment_status: 'paid',
           payment_screenshot_url: screenshotUrl,
           utr_number: utrNumber || null,
         })
@@ -91,7 +90,7 @@ const UPIPaymentDialog = ({ order, open, onOpenChange, onPaymentSubmitted }: UPI
 
       if (error) throw error;
 
-      toast({ title: 'Payment submitted for verification' });
+      toast({ title: 'Payment details submitted. Waiting for shopkeeper to verify.' });
       onPaymentSubmitted();
       onOpenChange(false);
       setStep('pay');
