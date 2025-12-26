@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
+import { AspectRatio } from '@/components/ui/aspect-ratio';
 import { useNavigate } from 'react-router-dom';
 import { Store, Menu, Check, X, CreditCard, AlertCircle, Settings, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
@@ -157,26 +158,31 @@ const ShopkeeperDashboard = () => {
                       <Button size="sm" variant="destructive" onClick={() => handleStatusChange(order.id, 'rejected')}><X className="w-4 h-4 mr-1" />Reject</Button>
                     </div>
                   ) : order.status === 'accepted' && order.payment_status === 'unpaid' ? (
-                    // Waiting for payment - check if student submitted UTR/screenshot
+                    // Waiting for payment - check if student submitted screenshot
                     <div className="space-y-3">
-                      {(order.utr_number || order.payment_screenshot_url) ? (
+                      {order.payment_screenshot_url ? (
                         // Student submitted payment proof - shopkeeper needs to verify
                         <>
                           <div className="p-3 bg-yellow-500/10 rounded-lg space-y-2">
-                            <p className="text-sm font-medium text-yellow-600">Payment proof submitted - Verify & Confirm</p>
-                            {order.utr_number && (
-                              <p className="text-xs text-muted-foreground">UTR: <span className="font-mono">{order.utr_number}</span></p>
-                            )}
-                            {order.payment_screenshot_url && (
-                              <a 
-                                href={order.payment_screenshot_url} 
-                                target="_blank" 
-                                rel="noopener noreferrer"
-                                className="text-xs text-primary underline block"
-                              >
-                                View Payment Screenshot
-                              </a>
-                            )}
+                            <p className="text-sm font-medium text-yellow-600">Payment screenshot submitted - Verify & Confirm</p>
+                            <a
+                              href={order.payment_screenshot_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-xs text-primary underline block"
+                            >
+                              Open Payment Screenshot
+                            </a>
+                            <div className="overflow-hidden rounded-md border border-border">
+                              <AspectRatio ratio={16 / 9}>
+                                <img
+                                  src={order.payment_screenshot_url}
+                                  alt={`Payment screenshot for order #${order.id.slice(0, 8).toUpperCase()}`}
+                                  loading="lazy"
+                                  className="h-full w-full object-cover"
+                                />
+                              </AspectRatio>
+                            </div>
                           </div>
                           <Button size="sm" onClick={() => handlePaymentConfirm(order.id)} className="w-full">
                             <Check className="w-4 h-4 mr-2" />
