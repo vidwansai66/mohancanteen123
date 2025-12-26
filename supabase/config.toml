@@ -1,1 +1,10 @@
 project_id = "aculzdkgqqvcwglxgqym"
+
+[functions.public-config]
+verify_jwt = false
+
+[functions.send-shopkeeper-verification]
+verify_jwt = false
+
+[functions.verify-shopkeeper-code]
+verify_jwt = false

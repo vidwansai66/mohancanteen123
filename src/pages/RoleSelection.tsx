@@ -1,42 +1,237 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useUserRole } from '@/hooks/useUserRole';
-import { Button } from '@/components/ui/button';
+import { useNavigate, Navigate } from 'react-router-dom';
+import { useUser } from '@clerk/clerk-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { GraduationCap, Store, UtensilsCrossed } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { UtensilsCrossed, GraduationCap, Store, ArrowLeft, Loader2, Mail, KeyRound } from 'lucide-react';
+import { useUserRole } from '@/hooks/useUserRole';
 import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
+import {
+  InputOTP,
+  InputOTPGroup,
+  InputOTPSlot,
+} from "@/components/ui/input-otp";
+
+type Step = 'select' | 'verify';
 
 const RoleSelection = () => {
   const navigate = useNavigate();
-  const { setUserRole, role } = useUserRole();
+  const { user } = useUser();
+  const { role, setUserRole } = useUserRole();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
+  const [step, setStep] = useState<Step>('select');
+  const [verificationCode, setVerificationCode] = useState('');
+  const [codeSent, setCodeSent] = useState(false);
 
-  // If already has role, redirect
+  // If already has a role, redirect
   if (role) {
-    navigate(role === 'shopkeeper' ? '/shopkeeper' : '/student');
-    return null;
+    return <Navigate to={role === 'shopkeeper' ? '/shopkeeper' : '/student'} replace />;
   }
 
-  const handleRoleSelect = async (selectedRole: 'student' | 'shopkeeper') => {
+  const handleStudentSelect = async () => {
     setIsLoading(true);
-    const success = await setUserRole(selectedRole);
-    
+    const success = await setUserRole('student');
     if (success) {
       toast({
-        title: 'Welcome!',
-        description: `You're now registered as a ${selectedRole}.`,
+        title: "Welcome, Student!",
+        description: "You can now browse the menu and place orders.",
       });
-      navigate(selectedRole === 'shopkeeper' ? '/shopkeeper' : '/student');
+      navigate('/student');
     } else {
       toast({
-        title: 'Error',
-        description: 'Failed to set role. Please try again.',
-        variant: 'destructive',
+        title: "Error",
+        description: "Failed to set your role. Please try again.",
+        variant: "destructive",
       });
     }
     setIsLoading(false);
   };
+
+  const handleShopkeeperSelect = () => {
+    setStep('verify');
+  };
+
+  const handleSendCode = async () => {
+    if (!user) return;
+    
+    setIsLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('send-shopkeeper-verification', {
+        body: {
+          userId: user.id,
+          userEmail: user.primaryEmailAddress?.emailAddress || 'unknown',
+        },
+      });
+
+      if (error) throw error;
+
+      setCodeSent(true);
+      toast({
+        title: "Verification Code Sent",
+        description: "A code has been sent to the developer. Please ask them for the code.",
+      });
+    } catch (error: any) {
+      console.error('Error sending code:', error);
+      toast({
+        title: "Error",
+        description: "Failed to send verification code. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleVerifyCode = async () => {
+    if (!user || verificationCode.length !== 6) return;
+
+    setIsLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('verify-shopkeeper-code', {
+        body: {
+          userId: user.id,
+          code: verificationCode,
+        },
+      });
+
+      if (error) throw error;
+
+      if (data?.valid) {
+        const success = await setUserRole('shopkeeper');
+        if (success) {
+          toast({
+            title: "Welcome, Shopkeeper!",
+            description: "You now have access to manage the canteen.",
+          });
+          navigate('/shopkeeper');
+        } else {
+          toast({
+            title: "Error",
+            description: "Failed to set your role. Please try again.",
+            variant: "destructive",
+          });
+        }
+      } else {
+        toast({
+          title: "Invalid Code",
+          description: "The verification code is incorrect or has expired.",
+          variant: "destructive",
+        });
+      }
+    } catch (error: any) {
+      console.error('Error verifying code:', error);
+      toast({
+        title: "Error",
+        description: "Failed to verify code. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  if (step === 'verify') {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-background p-4">
+        <div className="w-full max-w-md">
+          <Button
+            variant="ghost"
+            className="mb-4"
+            onClick={() => {
+              setStep('select');
+              setCodeSent(false);
+              setVerificationCode('');
+            }}
+          >
+            <ArrowLeft className="w-4 h-4 mr-2" />
+            Back
+          </Button>
+
+          <Card>
+            <CardHeader className="text-center">
+              <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
+                <KeyRound className="w-8 h-8 text-primary" />
+              </div>
+              <CardTitle>Shopkeeper Verification</CardTitle>
+              <CardDescription>
+                Developer permission is required to access shopkeeper features.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {!codeSent ? (
+                <div className="space-y-4">
+                  <div className="text-center text-sm text-muted-foreground">
+                    <Mail className="w-5 h-5 inline-block mr-2" />
+                    A verification code will be sent to the developer for approval.
+                  </div>
+                  <Button
+                    className="w-full"
+                    onClick={handleSendCode}
+                    disabled={isLoading}
+                  >
+                    {isLoading ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        Sending...
+                      </>
+                    ) : (
+                      'Request Verification Code'
+                    )}
+                  </Button>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="text-center text-sm text-muted-foreground">
+                    Enter the 6-digit code provided by the developer.
+                  </div>
+                  <div className="flex justify-center">
+                    <InputOTP
+                      maxLength={6}
+                      value={verificationCode}
+                      onChange={(value) => setVerificationCode(value)}
+                    >
+                      <InputOTPGroup>
+                        <InputOTPSlot index={0} />
+                        <InputOTPSlot index={1} />
+                        <InputOTPSlot index={2} />
+                        <InputOTPSlot index={3} />
+                        <InputOTPSlot index={4} />
+                        <InputOTPSlot index={5} />
+                      </InputOTPGroup>
+                    </InputOTP>
+                  </div>
+                  <Button
+                    className="w-full"
+                    onClick={handleVerifyCode}
+                    disabled={isLoading || verificationCode.length !== 6}
+                  >
+                    {isLoading ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        Verifying...
+                      </>
+                    ) : (
+                      'Verify & Continue'
+                    )}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="w-full"
+                    onClick={handleSendCode}
+                    disabled={isLoading}
+                  >
+                    Resend Code
+                  </Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-background p-4">
@@ -53,7 +248,7 @@ const RoleSelection = () => {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full max-w-2xl">
         <Card 
           className="cursor-pointer transition-all hover:border-primary hover:shadow-lg hover:shadow-primary/10"
-          onClick={() => !isLoading && handleRoleSelect('student')}
+          onClick={() => !isLoading && handleStudentSelect()}
         >
           <CardHeader className="text-center">
             <div className="mx-auto w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mb-4">
@@ -69,6 +264,7 @@ const RoleSelection = () => {
               className="w-full" 
               disabled={isLoading}
             >
+              {isLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
               Continue as Student
             </Button>
           </CardContent>
@@ -76,7 +272,7 @@ const RoleSelection = () => {
 
         <Card 
           className="cursor-pointer transition-all hover:border-primary hover:shadow-lg hover:shadow-primary/10"
-          onClick={() => !isLoading && handleRoleSelect('shopkeeper')}
+          onClick={() => !isLoading && handleShopkeeperSelect()}
         >
           <CardHeader className="text-center">
             <div className="mx-auto w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mb-4">
