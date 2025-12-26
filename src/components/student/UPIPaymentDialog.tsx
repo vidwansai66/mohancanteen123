@@ -78,15 +78,19 @@ const UPIPaymentDialog = ({ order, open, onOpenChange, onPaymentSubmitted }: UPI
       screenshotUrl = urlData.signedUrl;
 
       // Update order with payment proof - payment_status stays 'unpaid' until shopkeeper verifies
-      const { error } = await supabaseWithClerk
+      const { data: updated, error } = await supabaseWithClerk
         .from('orders')
         .update({
           payment_screenshot_url: screenshotUrl,
           utr_number: null,
         })
-        .eq('id', order.id);
+        .eq('id', order.id)
+        .select('id');
 
       if (error) throw error;
+      if (!updated || updated.length === 0) {
+        throw new Error('Could not attach the screenshot to your order. Please refresh and try again.');
+      }
 
       toast({ title: 'Screenshot submitted. Waiting for shopkeeper to verify.' });
       onPaymentSubmitted();
