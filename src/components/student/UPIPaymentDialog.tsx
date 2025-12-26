@@ -68,11 +68,13 @@ const UPIPaymentDialog = ({ order, open, onOpenChange, onPaymentSubmitted }: UPI
 
       if (uploadError) throw uploadError;
 
-      const { data: urlData } = supabase.storage
+      // Use signed URL since bucket is private for security
+      const { data: urlData } = await supabase.storage
         .from('payment-screenshots')
-        .getPublicUrl(fileName);
+        .createSignedUrl(fileName, 86400); // 24 hour expiry
 
-      screenshotUrl = urlData.publicUrl;
+      if (!urlData?.signedUrl) throw new Error('Failed to get signed URL');
+      screenshotUrl = urlData.signedUrl;
 
       // Update order with payment proof - payment_status stays 'unpaid' until shopkeeper verifies
       const { error } = await supabase
