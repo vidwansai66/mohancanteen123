@@ -14,6 +14,7 @@ import { format } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
 import ShopSettingsDialog from '@/components/shopkeeper/ShopSettingsDialog';
 import OrderChatDialog from '@/components/OrderChatDialog';
+import NotificationBell from '@/components/NotificationBell';
 
 const ShopkeeperDashboard = () => {
   const navigate = useNavigate();
@@ -101,6 +102,7 @@ const ShopkeeperDashboard = () => {
               <Menu className="w-4 h-4 sm:mr-2" />
               <span className="hidden sm:inline">Menu</span>
             </Button>
+            <NotificationBell />
             <UserButton afterSignOutUrl="/auth" />
           </div>
         </div>

@@ -12,6 +12,7 @@ import CartDrawer from '@/components/student/CartDrawer';
 import ShopCard from '@/components/student/ShopCard';
 import ShopClosedBanner from '@/components/student/ShopClosedBanner';
 import { Skeleton } from '@/components/ui/skeleton';
+import NotificationBell from '@/components/NotificationBell';
 
 const categories = ['all', 'breakfast', 'lunch', 'snacks', 'drinks'] as const;
 
@@ -45,7 +46,10 @@ const StudentHome = () => {
                 <p className="text-xs text-muted-foreground">Hi, {user?.firstName || 'Student'}!</p>
               </div>
             </div>
-            <UserButton afterSignOutUrl="/auth" />
+            <div className="flex items-center gap-2">
+              <NotificationBell />
+              <UserButton afterSignOutUrl="/auth" />
+            </div>
           </div>
         </header>
 
@@ -91,7 +95,10 @@ const StudentHome = () => {
               </p>
             </div>
           </div>
-          <UserButton afterSignOutUrl="/auth" />
+          <div className="flex items-center gap-2">
+            <NotificationBell />
+            <UserButton afterSignOutUrl="/auth" />
+          </div>
         </div>
       </header>
 

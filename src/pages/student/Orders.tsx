@@ -7,6 +7,7 @@ import BottomNav from '@/components/student/BottomNav';
 import CartDrawer from '@/components/student/CartDrawer';
 import UPIPaymentDialog from '@/components/student/UPIPaymentDialog';
 import OrderChatDialog from '@/components/OrderChatDialog';
+import NotificationBell from '@/components/NotificationBell';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ClipboardList } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
@@ -70,7 +71,10 @@ const StudentOrders = () => {
   return (
     <div className="min-h-screen bg-background pb-20">
       <header className="sticky top-0 bg-background/95 backdrop-blur border-b border-border z-40 px-4 py-4">
-        <h1 className="font-bold text-xl text-foreground">My Orders</h1>
+        <div className="flex items-center justify-between max-w-2xl mx-auto">
+          <h1 className="font-bold text-xl text-foreground">My Orders</h1>
+          <NotificationBell />
+        </div>
       </header>
 
       <main className="px-4 py-4 max-w-2xl mx-auto">
