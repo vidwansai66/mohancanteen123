@@ -14,8 +14,9 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { format, differenceInHours } from 'date-fns';
-import { Clock, CheckCircle, XCircle, Package, ChefHat, CreditCard, Heart, MessageCircle } from 'lucide-react';
+import { Clock, CheckCircle, XCircle, Package, ChefHat, CreditCard, Heart, MessageCircle, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useState } from 'react';
 
 interface OrderCardProps {
   order: Order;
@@ -37,6 +38,8 @@ const statusConfig: Record<Order['status'], { label: string; color: string; icon
 };
 
 const OrderCard = ({ order, onPayNow, onCancel, isFavourite, onToggleFavourite, onOpenChat }: OrderCardProps) => {
+  const [isTogglingFav, setIsTogglingFav] = useState(false);
+  const [isCancelling, setIsCancelling] = useState(false);
   const config = statusConfig[order.status];
 
   const paymentPending = order.status === 'accepted' && order.payment_status === 'unpaid';
@@ -44,21 +47,39 @@ const OrderCard = ({ order, onPayNow, onCancel, isFavourite, onToggleFavourite, 
   const canCancel = order.status === 'pending' && !!onCancel;
   const canChat = !['completed', 'rejected', 'cancelled'].includes(order.status) && !!onOpenChat;
 
-  // Check if order should be auto-cancelled (pending for > 5 hours)
   const hoursPending = order.status === 'pending'
     ? differenceInHours(new Date(), new Date(order.created_at))
     : 0;
 
+  const handleToggleFav = async () => {
+    if (!onToggleFavourite) return;
+    setIsTogglingFav(true);
+    await onToggleFavourite();
+    setTimeout(() => setIsTogglingFav(false), 300);
+  };
+
+  const handleCancel = async () => {
+    if (!onCancel) return;
+    setIsCancelling(true);
+    await onCancel();
+    setIsCancelling(false);
+  };
+
   return (
-    <Card className="p-4">
+    <Card className="p-4 animate-fade-in transition-all duration-200 hover:shadow-md">
       <div className="flex items-start justify-between mb-3">
         <div className="flex items-start gap-2">
           {onToggleFavourite && (
-            <button onClick={onToggleFavourite} className="mt-1">
+            <button 
+              onClick={handleToggleFav} 
+              disabled={isTogglingFav}
+              className="mt-1 transition-transform duration-200 hover:scale-110 active:scale-95 min-w-[44px] min-h-[44px] flex items-center justify-center -ml-2"
+            >
               <Heart
                 className={cn(
-                  'w-5 h-5 transition-colors',
-                  isFavourite ? 'fill-destructive text-destructive' : 'text-muted-foreground'
+                  'w-5 h-5 transition-all duration-200',
+                  isFavourite ? 'fill-destructive text-destructive' : 'text-muted-foreground',
+                  isTogglingFav && isFavourite && 'animate-pop'
                 )}
               />
             </button>
@@ -70,20 +91,23 @@ const OrderCard = ({ order, onPayNow, onCancel, isFavourite, onToggleFavourite, 
             <p className="text-sm font-medium text-foreground mt-1">
               Order #{order.id.slice(0, 8).toUpperCase()}
             </p>
+            {order.shop?.shop_name && (
+              <p className="text-xs text-muted-foreground mt-0.5">{order.shop.shop_name}</p>
+            )}
           </div>
         </div>
         <div className="flex flex-col gap-1 items-end">
-          <Badge className={cn('flex items-center gap-1', config.color)}>
+          <Badge className={cn('flex items-center gap-1 transition-all', config.color)}>
             {config.icon}
             {config.label}
           </Badge>
           {paymentPending && (
-            <Badge variant="destructive" className="flex items-center gap-1">
+            <Badge variant="destructive" className="flex items-center gap-1 animate-pulse">
               <CreditCard className="w-3 h-3" />
               Payment pending
             </Badge>
           )}
-          {hoursPending >= 5 && (
+          {hoursPending >= 4 && (
             <Badge variant="outline" className="text-destructive border-destructive text-xs">
               Will auto-cancel soon
             </Badge>
@@ -100,9 +124,9 @@ const OrderCard = ({ order, onPayNow, onCancel, isFavourite, onToggleFavourite, 
 
       {/* Payment Notice */}
       {paymentPending && (
-        <div className="mb-3 p-3 bg-destructive/10 rounded-lg text-destructive text-sm">
+        <div className="mb-3 p-3 bg-destructive/10 rounded-lg text-destructive text-sm animate-fade-in">
           <p className="font-medium">Payment Required</p>
-          <p className="text-xs mt-1">After paying ₹{Number(order.total).toFixed(0)} at the counter, tap "Pay Now".</p>
+          <p className="text-xs mt-1">Complete payment of ₹{Number(order.total).toFixed(0)} to proceed.</p>
         </div>
       )}
 
@@ -119,21 +143,21 @@ const OrderCard = ({ order, onPayNow, onCancel, isFavourite, onToggleFavourite, 
       </div>
 
       {order.notes && (
-        <p className="text-xs text-muted-foreground italic mb-3">
+        <p className="text-xs text-muted-foreground italic mb-3 p-2 bg-muted/50 rounded">
           Note: {order.notes}
         </p>
       )}
 
       {(canPayNow || canCancel || canChat) && (
-        <div className="flex gap-2 mb-3">
+        <div className="flex gap-2 mb-3 flex-wrap">
           {canCancel && (
             <AlertDialog>
               <AlertDialogTrigger asChild>
-                <Button variant="destructive" size="sm" className="flex-1">
-                  Cancel Order
+                <Button variant="destructive" size="sm" className="flex-1 min-h-[44px] touch-feedback" disabled={isCancelling}>
+                  {isCancelling ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Cancel Order'}
                 </Button>
               </AlertDialogTrigger>
-              <AlertDialogContent>
+              <AlertDialogContent className="animate-scale-in">
                 <AlertDialogHeader>
                   <AlertDialogTitle>Cancel this order?</AlertDialogTitle>
                   <AlertDialogDescription>
@@ -142,38 +166,28 @@ const OrderCard = ({ order, onPayNow, onCancel, isFavourite, onToggleFavourite, 
                 </AlertDialogHeader>
                 <AlertDialogFooter>
                   <AlertDialogCancel>Go back</AlertDialogCancel>
-                  <AlertDialogAction onClick={onCancel}>Cancel order</AlertDialogAction>
+                  <AlertDialogAction onClick={handleCancel}>Cancel order</AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>
             </AlertDialog>
           )}
 
           {canPayNow && (
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button size="sm" className="flex-1">
-                  Pay Now
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Confirm payment</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    Tap confirm after you've paid at the counter.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Not yet</AlertDialogCancel>
-                  <AlertDialogAction onClick={onPayNow}>I paid</AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
+            <Button size="sm" onClick={onPayNow} className="flex-1 min-h-[44px] touch-feedback animate-pulse-glow">
+              <CreditCard className="w-4 h-4 mr-2" />
+              Pay Now
+            </Button>
           )}
 
           {canChat && (
-            <Button variant="outline" size="sm" onClick={onOpenChat} className={cn(!canCancel && !canPayNow && 'flex-1')}>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={onOpenChat} 
+              className={cn("min-h-[44px] touch-feedback", !canCancel && !canPayNow && 'flex-1')}
+            >
               <MessageCircle className="w-4 h-4 mr-1" />
-              Chat with Shop
+              Chat
             </Button>
           )}
         </div>
@@ -181,7 +195,7 @@ const OrderCard = ({ order, onPayNow, onCancel, isFavourite, onToggleFavourite, 
 
       <div className="flex justify-between items-center pt-3 border-t border-border">
         <span className="font-medium text-foreground">Total</span>
-        <span className="font-bold text-primary">₹{Number(order.total).toFixed(0)}</span>
+        <span className="font-bold text-primary text-lg">₹{Number(order.total).toFixed(0)}</span>
       </div>
     </Card>
   );
@@ -197,9 +211,9 @@ const OrderProgress = ({ status, paymentPending }: { status: Order['status']; pa
         <div key={step} className="flex-1 flex items-center">
           <div
             className={cn(
-              'h-1 flex-1 rounded-full transition-colors',
+              'h-1.5 flex-1 rounded-full transition-all duration-500',
               index < currentIndex
-                ? 'bg-primary'
+                ? 'bg-success'
                 : index === currentIndex && paymentPending
                   ? 'bg-destructive animate-pulse'
                   : index === currentIndex
