@@ -4,7 +4,7 @@ import { useCartStore, CartItem } from '@/stores/cartStore';
 import { Minus, Plus, Trash2, ShoppingBag, Loader2, CheckCircle } from 'lucide-react';
 import { useState } from 'react';
 import { useUser } from '@clerk/clerk-react';
-import { supabase } from '@/integrations/supabase/client';
+import { useSupabaseWithClerk } from '@/hooks/useSupabaseWithClerk';
 import { useToast } from '@/hooks/use-toast';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
@@ -18,6 +18,7 @@ interface CartDrawerProps {
 
 const CartDrawer = ({ open, onOpenChange, shopOpen = true, shopId }: CartDrawerProps) => {
   const { user } = useUser();
+  const supabase = useSupabaseWithClerk();
   const { toast } = useToast();
   const { items, updateQuantity, removeItem, clearShopCart, getShopItems, getShopTotalPrice, getTotalPrice } = useCartStore();
   const [notes, setNotes] = useState('');
