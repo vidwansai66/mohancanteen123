@@ -158,31 +158,40 @@ export type Database = {
           created_at: string
           id: string
           notes: string | null
+          payment_screenshot_url: string | null
           payment_status: string
+          payment_verified: boolean | null
           status: string
           total: number
           updated_at: string
           user_id: string
+          utr_number: string | null
         }
         Insert: {
           created_at?: string
           id?: string
           notes?: string | null
+          payment_screenshot_url?: string | null
           payment_status?: string
+          payment_verified?: boolean | null
           status?: string
           total: number
           updated_at?: string
           user_id: string
+          utr_number?: string | null
         }
         Update: {
           created_at?: string
           id?: string
           notes?: string | null
+          payment_screenshot_url?: string | null
           payment_status?: string
+          payment_verified?: boolean | null
           status?: string
           total?: number
           updated_at?: string
           user_id?: string
+          utr_number?: string | null
         }
         Relationships: []
       }
