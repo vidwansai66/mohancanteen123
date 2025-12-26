@@ -9,6 +9,7 @@ export interface Shop {
   upi_id: string | null;
   upi_name: string | null;
   is_open: boolean;
+  is_active: boolean;
   reopen_time: string | null;
   created_at: string;
   updated_at: string;
@@ -109,7 +110,7 @@ export const useMyShop = () => {
     return data as Shop;
   };
 
-  const updateShop = async (updates: Partial<Pick<Shop, 'shop_name' | 'upi_id' | 'upi_name' | 'is_open' | 'reopen_time'>>) => {
+  const updateShop = async (updates: Partial<Pick<Shop, 'shop_name' | 'upi_id' | 'upi_name' | 'is_open' | 'reopen_time' | 'is_active'>>) => {
     if (!shop) return false;
 
     const { data, error } = await supabase
@@ -128,5 +129,10 @@ export const useMyShop = () => {
     return true;
   };
 
-  return { shop, isLoading, createShop, updateShop, refetch: fetchMyShop };
+  const deactivateShop = async () => {
+    if (!shop) return false;
+    return updateShop({ is_active: false });
+  };
+
+  return { shop, isLoading, createShop, updateShop, deactivateShop, refetch: fetchMyShop };
 };
