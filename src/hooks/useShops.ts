@@ -39,9 +39,9 @@ export const useShops = () => {
   useEffect(() => {
     fetchShops();
 
-    // Subscribe to realtime updates
+    // Subscribe to realtime updates for all shops
     const channel = supabase
-      .channel('shops-changes')
+      .channel('shops-realtime-all')
       .on(
         'postgres_changes',
         {
@@ -49,11 +49,37 @@ export const useShops = () => {
           schema: 'public',
           table: 'shops',
         },
-        () => {
-          fetchShops();
+        (payload) => {
+          console.log('🏪 Shops changed:', payload.eventType, payload);
+          
+          if (payload.eventType === 'INSERT') {
+            const newShop = payload.new as Shop;
+            if (newShop.is_active) {
+              setShops(prev => [...prev, newShop].sort((a, b) => a.shop_name.localeCompare(b.shop_name)));
+            }
+          } else if (payload.eventType === 'UPDATE') {
+            const updatedShop = payload.new as Shop;
+            setShops(prev => {
+              if (updatedShop.is_active) {
+                const exists = prev.some(s => s.id === updatedShop.id);
+                if (exists) {
+                  return prev.map(s => s.id === updatedShop.id ? updatedShop : s);
+                } else {
+                  return [...prev, updatedShop].sort((a, b) => a.shop_name.localeCompare(b.shop_name));
+                }
+              } else {
+                return prev.filter(s => s.id !== updatedShop.id);
+              }
+            });
+          } else if (payload.eventType === 'DELETE') {
+            const deletedShop = payload.old as Shop;
+            setShops(prev => prev.filter(s => s.id !== deletedShop.id));
+          }
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        console.log('All shops realtime subscription status:', status);
+      });
 
     return () => {
       supabase.removeChannel(channel);
@@ -91,7 +117,35 @@ export const useMyShop = () => {
 
   useEffect(() => {
     fetchMyShop();
-  }, [fetchMyShop]);
+    
+    // Subscribe to realtime updates for my shop
+    if (!user?.id) return;
+    
+    const channel = supabase
+      .channel(`my-shop-realtime-${user.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'shops',
+        },
+        (payload) => {
+          const updatedShop = payload.new as any;
+          if (updatedShop.owner_user_id === user.id) {
+            console.log('🏪 My shop updated:', payload);
+            setShop(updatedShop as Shop);
+          }
+        }
+      )
+      .subscribe((status) => {
+        console.log('My shop realtime subscription status:', status);
+      });
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user?.id]);
 
   const createShop = async (shopName: string) => {
     if (!user) return null;

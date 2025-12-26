@@ -31,7 +31,7 @@ export const useShopStatus = () => {
 
     // Subscribe to realtime updates
     const channel = supabase
-      .channel('shop-status-changes')
+      .channel('shop-status-realtime')
       .on(
         'postgres_changes',
         {
@@ -40,10 +40,13 @@ export const useShopStatus = () => {
           table: 'shop_status',
         },
         (payload) => {
+          console.log('🏪 Shop status changed:', payload);
           setShopStatus(payload.new as ShopStatus);
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        console.log('Shop status realtime subscription status:', status);
+      });
 
     return () => {
       supabase.removeChannel(channel);
