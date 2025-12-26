@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useUser } from '@clerk/clerk-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -20,6 +21,7 @@ const UPI_ID = 'vidwan@fam';
 const UPI_NAME = 'BACCHU SAI VIDWAN';
 
 const UPIPaymentDialog = ({ order, open, onOpenChange, onPaymentSubmitted }: UPIPaymentDialogProps) => {
+  const { user } = useUser();
   const { toast } = useToast();
   const isMobile = useIsMobile();
   const supabaseWithClerk = useSupabaseWithClerk();
@@ -27,7 +29,7 @@ const UPIPaymentDialog = ({ order, open, onOpenChange, onPaymentSubmitted }: UPI
   const [screenshotFile, setScreenshotFile] = useState<File | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  if (!order) return null;
+  if (!order || !user) return null;
 
   const amount = Number(order.total).toFixed(2);
   const orderId = order.id.slice(0, 8).toUpperCase();
@@ -59,7 +61,8 @@ const UPIPaymentDialog = ({ order, open, onOpenChange, onPaymentSubmitted }: UPI
 
     try {
       const fileExt = screenshotFile.name.split('.').pop();
-      const fileName = `${order.id}-${Date.now()}.${fileExt}`;
+      // Store in user folder for RLS: {user_id}/{order_id}-{timestamp}.{ext}
+      const fileName = `${user.id}/${order.id}-${Date.now()}.${fileExt}`;
 
       const { error: uploadError } = await supabaseWithClerk.storage
         .from('payment-screenshots')
@@ -67,12 +70,9 @@ const UPIPaymentDialog = ({ order, open, onOpenChange, onPaymentSubmitted }: UPI
 
       if (uploadError) throw uploadError;
 
-      // Get public URL - the bucket has RLS so only authenticated users can access
-      const { data: urlData } = supabaseWithClerk.storage
-        .from('payment-screenshots')
-        .getPublicUrl(fileName);
-
-      const screenshotUrl = urlData?.publicUrl || fileName;
+      // Store the file path (not public URL since bucket is now private)
+      // Shopkeeper will generate signed URLs to view
+      const screenshotUrl = fileName;
 
       // Update order with payment proof - payment_status stays 'unpaid' until shopkeeper verifies
       const { data: updated, error } = await supabaseWithClerk
