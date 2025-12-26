@@ -19,13 +19,57 @@ import NotificationBell from '@/components/NotificationBell';
 const ShopkeeperDashboard = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const supabaseWithClerk = useSupabaseWithClerk();
   const { shop, isLoading: shopLoading, updateShop } = useMyShop();
   const { orders, updateOrderStatus, updatePaymentStatus, isLoading } = useOrders(false, shop?.id);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [chatOrderId, setChatOrderId] = useState<string | null>(null);
+  const [fallbackScreenshotUrls, setFallbackScreenshotUrls] = useState<Record<string, string>>({});
 
   const activeOrders = orders.filter((o) => !['completed', 'rejected', 'cancelled'].includes(o.status));
   const completedOrders = orders.filter((o) => o.status === 'completed').slice(0, 40);
+
+  useEffect(() => {
+    const missing = orders
+      .filter((o) => o.status === 'accepted' && o.payment_status === 'unpaid' && !o.payment_screenshot_url)
+      .map((o) => o.id)
+      .filter((id) => !fallbackScreenshotUrls[id]);
+
+    if (missing.length === 0) return;
+
+    let cancelled = false;
+
+    (async () => {
+      // List once, then match by prefix "{orderId}-" (files are stored at bucket root)
+      const { data: files, error } = await supabaseWithClerk.storage
+        .from('payment-screenshots')
+        .list('', { limit: 100, sortBy: { column: 'created_at', order: 'desc' } });
+
+      if (cancelled || error || !files || files.length === 0) return;
+
+      const updates: Record<string, string> = {};
+
+      for (const orderId of missing) {
+        const match = files.find((f) => (f.name || '').startsWith(`${orderId}-`));
+        if (!match?.name) continue;
+
+        const { data: urlData } = await supabaseWithClerk.storage
+          .from('payment-screenshots')
+          .createSignedUrl(match.name, 86400);
+
+        if (urlData?.signedUrl) updates[orderId] = urlData.signedUrl;
+      }
+
+      if (cancelled) return;
+      if (Object.keys(updates).length > 0) {
+        setFallbackScreenshotUrls((prev) => ({ ...prev, ...updates }));
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [orders, fallbackScreenshotUrls, supabaseWithClerk]);
 
   // Find chat order for student name
   const chatOrder = orders.find((o) => o.id === chatOrderId);
