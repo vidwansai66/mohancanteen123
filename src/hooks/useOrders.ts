@@ -126,19 +126,26 @@ export const useOrders = (filterByUser = true, shopId?: string) => {
   useEffect(() => {
     fetchOrders();
 
-    // Subscribe to realtime updates (use regular client for realtime - it's a separate channel)
+    // Create unique channel name to avoid conflicts
+    const channelName = `orders-realtime-${shopId || 'all'}-${filterByUser ? 'user' : 'shop'}`;
+    
+    // Subscribe to realtime updates
     const channel = supabase
-      .channel('orders-realtime')
+      .channel(channelName)
       .on(
         'postgres_changes',
         {
           event: 'INSERT',
           schema: 'public',
           table: 'orders',
-          ...(shopId ? { filter: `shop_id=eq.${shopId}` } : {}),
         },
         (payload) => {
           console.log('🔔 New order received:', payload);
+          // Check if this order is relevant to us
+          const newOrder = payload.new as any;
+          if (shopId && newOrder.shop_id !== shopId) return;
+          if (filterByUser && user && newOrder.user_id !== user.id) return;
+          
           fetchOrders();
           if (!filterByUser && shopId) {
             // Play notification sound for shopkeeper
@@ -160,18 +167,40 @@ export const useOrders = (filterByUser = true, shopId?: string) => {
           event: 'UPDATE',
           schema: 'public',
           table: 'orders',
-          ...(shopId ? { filter: `shop_id=eq.${shopId}` } : {}),
         },
         (payload) => {
           console.log('📝 Order updated:', payload);
+          const updatedOrder = payload.new as any;
+          
+          // Check if this order is relevant to us
+          if (shopId && updatedOrder.shop_id !== shopId) return;
+          if (filterByUser && user && updatedOrder.user_id !== user.id) return;
+          
           // Immediately update local state for faster UI response
           setOrders(prev => prev.map(order => 
-            order.id === payload.new.id 
-              ? { ...order, ...payload.new as Partial<Order> }
+            order.id === updatedOrder.id 
+              ? { ...order, status: updatedOrder.status, payment_status: updatedOrder.payment_status, payment_verified: updatedOrder.payment_verified, updated_at: updatedOrder.updated_at }
               : order
           ));
-          // Then refetch to get complete data with relations
-          fetchOrders();
+          
+          // Show toast for status changes on student side
+          if (filterByUser) {
+            const statusLabels: Record<string, string> = {
+              accepted: 'Your order has been accepted!',
+              rejected: 'Your order was rejected',
+              preparing: 'Your order is being prepared',
+              ready: 'Your order is ready for pickup!',
+              completed: 'Order completed',
+              cancelled: 'Order was cancelled'
+            };
+            const message = statusLabels[updatedOrder.status];
+            if (message) {
+              toast({
+                title: '📋 Order Update',
+                description: message,
+              });
+            }
+          }
         }
       )
       .on(
@@ -183,7 +212,7 @@ export const useOrders = (filterByUser = true, shopId?: string) => {
         },
         (payload) => {
           console.log('🗑️ Order deleted:', payload);
-          setOrders(prev => prev.filter(order => order.id !== payload.old.id));
+          setOrders(prev => prev.filter(order => order.id !== (payload.old as any).id));
         }
       )
       .subscribe((status) => {
@@ -193,7 +222,7 @@ export const useOrders = (filterByUser = true, shopId?: string) => {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [fetchOrders, filterByUser, shopId, toast]);
+  }, [user?.id, filterByUser, shopId, toast]);
 
   const updateOrderStatus = async (orderId: string, status: Order['status']) => {
     const { error } = await supabaseWithClerk

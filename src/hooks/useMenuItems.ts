@@ -45,7 +45,44 @@ export const useMenuItems = (shopId?: string) => {
 
   useEffect(() => {
     fetchMenuItems();
-  }, [fetchMenuItems]);
+    
+    // Subscribe to realtime updates for menu items
+    const channelName = `menu-items-realtime-${shopId || 'all'}`;
+    const channel = supabase
+      .channel(channelName)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'menu_items',
+        },
+        (payload) => {
+          console.log('🍔 Menu item change:', payload.eventType, payload);
+          const changedItem = (payload.new || payload.old) as any;
+          
+          // Filter by shopId if specified
+          if (shopId && changedItem?.shop_id !== shopId) return;
+          
+          if (payload.eventType === 'INSERT') {
+            setMenuItems(prev => [...prev, changedItem as MenuItem]);
+          } else if (payload.eventType === 'UPDATE') {
+            setMenuItems(prev => prev.map(item => 
+              item.id === changedItem.id ? changedItem as MenuItem : item
+            ));
+          } else if (payload.eventType === 'DELETE') {
+            setMenuItems(prev => prev.filter(item => item.id !== changedItem.id));
+          }
+        }
+      )
+      .subscribe((status) => {
+        console.log('Menu items realtime subscription status:', status);
+      });
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [shopId]);
 
   const addMenuItem = async (item: Omit<MenuItem, 'id' | 'created_at' | 'updated_at'>) => {
     const { data, error } = await supabaseWithClerk
