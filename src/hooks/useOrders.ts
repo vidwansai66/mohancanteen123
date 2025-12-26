@@ -140,18 +140,8 @@ export const useOrders = (filterByUser = true, shopId?: string) => {
               });
             }
           } else if (payload.eventType === 'UPDATE') {
-            setOrders(prev => 
-              prev.map(order => 
-                order.id === payload.new.id 
-                  ? { 
-                      ...order, 
-                      ...payload.new, 
-                      status: payload.new.status as Order['status'],
-                      payment_status: (payload.new.payment_status || 'unpaid') as Order['payment_status']
-                    }
-                  : order
-              )
-            );
+            // Refetch to get the latest data including utr_number and payment_screenshot_url
+            fetchOrders();
           } else if (payload.eventType === 'DELETE') {
             setOrders(prev => prev.filter(order => order.id !== payload.old.id));
           }
@@ -167,13 +157,16 @@ export const useOrders = (filterByUser = true, shopId?: string) => {
   const updateOrderStatus = async (orderId: string, status: Order['status']) => {
     const { error } = await supabase
       .from('orders')
-      .update({ status })
+      .update({ status, updated_at: new Date().toISOString() })
       .eq('id', orderId);
 
     if (error) {
       console.error('Error updating order:', error);
+      toast({ title: 'Failed to update order', description: error.message, variant: 'destructive' });
       return false;
     }
+    // Refetch to ensure local state is updated
+    await fetchOrders();
     return true;
   };
 
