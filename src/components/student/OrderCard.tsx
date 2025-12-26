@@ -14,7 +14,7 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { format, differenceInHours } from 'date-fns';
-import { Clock, CheckCircle, XCircle, Package, ChefHat, CreditCard, Heart } from 'lucide-react';
+import { Clock, CheckCircle, XCircle, Package, ChefHat, CreditCard, Heart, MessageCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface OrderCardProps {
@@ -23,6 +23,7 @@ interface OrderCardProps {
   onCancel?: () => void;
   isFavourite?: boolean;
   onToggleFavourite?: () => void;
+  onOpenChat?: () => void;
 }
 
 const statusConfig: Record<Order['status'], { label: string; color: string; icon: React.ReactNode }> = {
@@ -35,17 +36,17 @@ const statusConfig: Record<Order['status'], { label: string; color: string; icon
   completed: { label: 'Completed', color: 'bg-muted text-muted-foreground', icon: <CheckCircle className="w-4 h-4" /> },
 };
 
-const OrderCard = ({ order, onPayNow, onCancel, isFavourite, onToggleFavourite }: OrderCardProps) => {
+const OrderCard = ({ order, onPayNow, onCancel, isFavourite, onToggleFavourite, onOpenChat }: OrderCardProps) => {
   const config = statusConfig[order.status];
 
   const paymentPending = order.status === 'accepted' && order.payment_status === 'unpaid';
   const canPayNow = paymentPending && !!onPayNow;
-
   const canCancel = order.status === 'pending' && !!onCancel;
+  const canChat = !['completed', 'rejected', 'cancelled'].includes(order.status) && !!onOpenChat;
 
   // Check if order should be auto-cancelled (pending for > 5 hours)
-  const hoursPending = order.status === 'pending' 
-    ? differenceInHours(new Date(), new Date(order.created_at)) 
+  const hoursPending = order.status === 'pending'
+    ? differenceInHours(new Date(), new Date(order.created_at))
     : 0;
 
   return (
@@ -53,15 +54,12 @@ const OrderCard = ({ order, onPayNow, onCancel, isFavourite, onToggleFavourite }
       <div className="flex items-start justify-between mb-3">
         <div className="flex items-start gap-2">
           {onToggleFavourite && (
-            <button
-              onClick={onToggleFavourite}
-              className="mt-1"
-            >
-              <Heart 
+            <button onClick={onToggleFavourite} className="mt-1">
+              <Heart
                 className={cn(
                   'w-5 h-5 transition-colors',
                   isFavourite ? 'fill-destructive text-destructive' : 'text-muted-foreground'
-                )} 
+                )}
               />
             </button>
           )}
@@ -104,7 +102,7 @@ const OrderCard = ({ order, onPayNow, onCancel, isFavourite, onToggleFavourite }
       {paymentPending && (
         <div className="mb-3 p-3 bg-destructive/10 rounded-lg text-destructive text-sm">
           <p className="font-medium">Payment Required</p>
-          <p className="text-xs mt-1">After paying ₹{Number(order.total).toFixed(0)} at the counter, tap “Pay Now”.</p>
+          <p className="text-xs mt-1">After paying ₹{Number(order.total).toFixed(0)} at the counter, tap "Pay Now".</p>
         </div>
       )}
 
@@ -126,7 +124,7 @@ const OrderCard = ({ order, onPayNow, onCancel, isFavourite, onToggleFavourite }
         </p>
       )}
 
-      {(canPayNow || canCancel) && (
+      {(canPayNow || canCancel || canChat) && (
         <div className="flex gap-2 mb-3">
           {canCancel && (
             <AlertDialog>
@@ -161,7 +159,7 @@ const OrderCard = ({ order, onPayNow, onCancel, isFavourite, onToggleFavourite }
                 <AlertDialogHeader>
                   <AlertDialogTitle>Confirm payment</AlertDialogTitle>
                   <AlertDialogDescription>
-                    Tap confirm after you’ve paid at the counter.
+                    Tap confirm after you've paid at the counter.
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
@@ -170,6 +168,13 @@ const OrderCard = ({ order, onPayNow, onCancel, isFavourite, onToggleFavourite }
                 </AlertDialogFooter>
               </AlertDialogContent>
             </AlertDialog>
+          )}
+
+          {canChat && (
+            <Button variant="outline" size="sm" onClick={onOpenChat} className={cn(!canCancel && !canPayNow && 'flex-1')}>
+              <MessageCircle className="w-4 h-4 mr-1" />
+              Chat with Shop
+            </Button>
           )}
         </div>
       )}
@@ -193,9 +198,13 @@ const OrderProgress = ({ status, paymentPending }: { status: Order['status']; pa
           <div
             className={cn(
               'h-1 flex-1 rounded-full transition-colors',
-              index < currentIndex ? 'bg-primary' :
-              index === currentIndex && paymentPending ? 'bg-destructive animate-pulse' :
-              index === currentIndex ? 'bg-primary' : 'bg-muted'
+              index < currentIndex
+                ? 'bg-primary'
+                : index === currentIndex && paymentPending
+                  ? 'bg-destructive animate-pulse'
+                  : index === currentIndex
+                    ? 'bg-primary'
+                    : 'bg-muted'
             )}
           />
         </div>
