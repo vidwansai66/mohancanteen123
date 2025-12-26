@@ -3,7 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Order } from '@/hooks/useOrders';
-import { supabase } from '@/integrations/supabase/client';
+import { useSupabaseWithClerk } from '@/hooks/useSupabaseWithClerk';
 import { useToast } from '@/hooks/use-toast';
 import { QRCodeSVG } from 'qrcode.react';
 import { Smartphone, Upload, Check, Loader2 } from 'lucide-react';
@@ -22,6 +22,7 @@ const UPI_NAME = 'BACCHU SAI VIDWAN';
 const UPIPaymentDialog = ({ order, open, onOpenChange, onPaymentSubmitted }: UPIPaymentDialogProps) => {
   const { toast } = useToast();
   const isMobile = useIsMobile();
+  const supabaseWithClerk = useSupabaseWithClerk();
   const [step, setStep] = useState<'pay' | 'verify'>('pay');
   const [screenshotFile, setScreenshotFile] = useState<File | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -62,14 +63,14 @@ const UPIPaymentDialog = ({ order, open, onOpenChange, onPaymentSubmitted }: UPI
       const fileExt = screenshotFile.name.split('.').pop();
       const fileName = `${order.id}-${Date.now()}.${fileExt}`;
 
-      const { error: uploadError } = await supabase.storage
+      const { error: uploadError } = await supabaseWithClerk.storage
         .from('payment-screenshots')
         .upload(fileName, screenshotFile);
 
       if (uploadError) throw uploadError;
 
       // Use signed URL since bucket is private for security
-      const { data: urlData } = await supabase.storage
+      const { data: urlData } = await supabaseWithClerk.storage
         .from('payment-screenshots')
         .createSignedUrl(fileName, 86400); // 24 hour expiry
 
@@ -77,7 +78,7 @@ const UPIPaymentDialog = ({ order, open, onOpenChange, onPaymentSubmitted }: UPI
       screenshotUrl = urlData.signedUrl;
 
       // Update order with payment proof - payment_status stays 'unpaid' until shopkeeper verifies
-      const { error } = await supabase
+      const { error } = await supabaseWithClerk
         .from('orders')
         .update({
           payment_screenshot_url: screenshotUrl,
