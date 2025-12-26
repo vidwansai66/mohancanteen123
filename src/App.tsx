@@ -17,6 +17,7 @@ import AuthPage from "@/pages/Auth";
 import RoleSelection from "@/pages/RoleSelection";
 import StudentHome from "@/pages/student/Home";
 import StudentOrders from "@/pages/student/Orders";
+import StudentFavourites from "@/pages/student/Favourites";
 import ShopkeeperDashboard from "@/pages/shopkeeper/Dashboard";
 import ShopkeeperMenu from "@/pages/shopkeeper/Menu";
 import NotFound from "@/pages/NotFound";
@@ -200,6 +201,14 @@ function App() {
                 element={
                   <ProtectedRoute>
                     <StudentOrders />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/student/favourites"
+                element={
+                  <ProtectedRoute>
+                    <StudentFavourites />
                   </ProtectedRoute>
                 }
               />
