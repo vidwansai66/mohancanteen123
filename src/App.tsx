@@ -5,6 +5,9 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useUserRole } from '@/hooks/useUserRole';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { AlertTriangle, ExternalLink } from 'lucide-react';
 
 import AuthPage from '@/pages/Auth';
 import RoleSelection from '@/pages/RoleSelection';
@@ -33,27 +36,75 @@ function RoleBasedRedirect() {
   return <Navigate to={role === 'shopkeeper' ? '/shopkeeper' : '/student'} replace />;
 }
 
-const App = () => (
-  <ClerkProvider publishableKey={clerkPubKey}>
-    <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <BrowserRouter>
-          <Routes>
-            <Route path="/auth/*" element={<AuthPage />} />
-            <Route path="/role-selection" element={<ProtectedRoute><RoleSelection /></ProtectedRoute>} />
-            <Route path="/student" element={<ProtectedRoute><StudentHome /></ProtectedRoute>} />
-            <Route path="/student/orders" element={<ProtectedRoute><StudentOrders /></ProtectedRoute>} />
-            <Route path="/shopkeeper" element={<ProtectedRoute><ShopkeeperDashboard /></ProtectedRoute>} />
-            <Route path="/shopkeeper/menu" element={<ProtectedRoute><ShopkeeperMenu /></ProtectedRoute>} />
-            <Route path="/" element={<ProtectedRoute><RoleBasedRedirect /></ProtectedRoute>} />
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </BrowserRouter>
-      </TooltipProvider>
-    </QueryClientProvider>
-  </ClerkProvider>
-);
+function MissingClerkKeyError() {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-background p-4">
+      <Card className="max-w-md w-full">
+        <CardHeader className="text-center">
+          <div className="mx-auto w-12 h-12 bg-warning/10 rounded-full flex items-center justify-center mb-4">
+            <AlertTriangle className="w-6 h-6 text-warning" />
+          </div>
+          <CardTitle>Clerk Setup Required</CardTitle>
+          <CardDescription>
+            The Clerk publishable key is not configured. Please follow these steps:
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <ol className="list-decimal list-inside space-y-2 text-sm text-muted-foreground">
+            <li>Go to <a href="https://dashboard.clerk.com" target="_blank" rel="noopener" className="text-primary hover:underline">Clerk Dashboard</a></li>
+            <li>Create a new application or select existing one</li>
+            <li>Go to API Keys and copy your <strong>Publishable Key</strong></li>
+            <li>In Lovable, go to Settings → Secrets</li>
+            <li>Update the <code className="bg-muted px-1 rounded">VITE_CLERK_PUBLISHABLE_KEY</code> secret with your key</li>
+          </ol>
+          <Button className="w-full" asChild>
+            <a href="https://dashboard.clerk.com/last-active?path=api-keys" target="_blank" rel="noopener">
+              <ExternalLink className="w-4 h-4 mr-2" />
+              Open Clerk Dashboard
+            </a>
+          </Button>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+const App = () => {
+  // Show helpful error if Clerk key is missing
+  if (!clerkPubKey) {
+    return (
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <Toaster />
+          <Sonner />
+          <MissingClerkKeyError />
+        </TooltipProvider>
+      </QueryClientProvider>
+    );
+  }
+
+  return (
+    <ClerkProvider publishableKey={clerkPubKey}>
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <Toaster />
+          <Sonner />
+          <BrowserRouter>
+            <Routes>
+              <Route path="/auth/*" element={<AuthPage />} />
+              <Route path="/role-selection" element={<ProtectedRoute><RoleSelection /></ProtectedRoute>} />
+              <Route path="/student" element={<ProtectedRoute><StudentHome /></ProtectedRoute>} />
+              <Route path="/student/orders" element={<ProtectedRoute><StudentOrders /></ProtectedRoute>} />
+              <Route path="/shopkeeper" element={<ProtectedRoute><ShopkeeperDashboard /></ProtectedRoute>} />
+              <Route path="/shopkeeper/menu" element={<ProtectedRoute><ShopkeeperMenu /></ProtectedRoute>} />
+              <Route path="/" element={<ProtectedRoute><RoleBasedRedirect /></ProtectedRoute>} />
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </BrowserRouter>
+        </TooltipProvider>
+      </QueryClientProvider>
+    </ClerkProvider>
+  );
+};
 
 export default App;
