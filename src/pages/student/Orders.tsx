@@ -13,7 +13,7 @@ import { differenceInHours } from 'date-fns';
 
 const StudentOrders = () => {
   const { toast } = useToast();
-  const { orders, isLoading, updateOrderStatus, refetch } = useOrders(true);
+  const { orders, isLoading, updateOrderStatus, cancelPendingOrder, refetch } = useOrders(true);
   const { isOrderFavourite, addFavouriteOrder, removeFavouriteOrder } = useFavourites();
   const [cartOpen, setCartOpen] = useState(false);
   const [paymentOrder, setPaymentOrder] = useState<Order | null>(null);
@@ -25,16 +25,16 @@ const StudentOrders = () => {
       for (const order of pendingOrders) {
         const hoursPending = differenceInHours(new Date(), new Date(order.created_at));
         if (hoursPending >= 5) {
-          await updateOrderStatus(order.id, 'cancelled');
-          toast({ 
-            title: 'Order auto-cancelled', 
+          await cancelPendingOrder(order.id);
+          toast({
+            title: 'Order auto-cancelled',
             description: `Order #${order.id.slice(0, 8).toUpperCase()} was cancelled after 5 hours`,
             variant: 'destructive'
           });
         }
       }
     };
-    
+
     if (orders.length > 0) {
       checkAutoCancelOrders();
     }
@@ -48,11 +48,9 @@ const StudentOrders = () => {
   };
 
   const handleCancelOrder = async (orderId: string) => {
-    const ok = await updateOrderStatus(orderId, 'cancelled');
+    const ok = await cancelPendingOrder(orderId);
     if (ok) {
       toast({ title: 'Order cancelled' });
-    } else {
-      toast({ title: 'Cancel failed', variant: 'destructive' });
     }
   };
 

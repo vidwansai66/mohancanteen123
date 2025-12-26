@@ -1,13 +1,12 @@
 import { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Order } from '@/hooks/useOrders';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { QRCodeSVG } from 'qrcode.react';
-import { Smartphone, QrCode, Upload, Check, Loader2 } from 'lucide-react';
+import { Smartphone, Upload, Check, Loader2 } from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-mobile';
 
 interface UPIPaymentDialogProps {
@@ -24,7 +23,6 @@ const UPIPaymentDialog = ({ order, open, onOpenChange, onPaymentSubmitted }: UPI
   const { toast } = useToast();
   const isMobile = useIsMobile();
   const [step, setStep] = useState<'pay' | 'verify'>('pay');
-  const [utrNumber, setUtrNumber] = useState('');
   const [screenshotFile, setScreenshotFile] = useState<File | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -33,7 +31,7 @@ const UPIPaymentDialog = ({ order, open, onOpenChange, onPaymentSubmitted }: UPI
   const amount = Number(order.total).toFixed(2);
   const orderId = order.id.slice(0, 8).toUpperCase();
   const transactionNote = `Order #${orderId}`;
-  
+
   // UPI deep link format
   const upiLink = `upi://pay?pa=${UPI_ID}&pn=${encodeURIComponent(UPI_NAME)}&am=${amount}&tn=${encodeURIComponent(transactionNote)}&cu=INR`;
 
@@ -51,54 +49,54 @@ const UPIPaymentDialog = ({ order, open, onOpenChange, onPaymentSubmitted }: UPI
   };
 
   const handleSubmitVerification = async () => {
-    if (!utrNumber && !screenshotFile) {
-      toast({ title: 'Please enter UTR number or upload screenshot', variant: 'destructive' });
+    if (!screenshotFile) {
+      toast({ title: 'Please upload payment screenshot', variant: 'destructive' });
       return;
     }
 
     setIsSubmitting(true);
 
     try {
-      let screenshotUrl = null;
+      let screenshotUrl: string | null = null;
 
-      // Upload screenshot if provided
-      if (screenshotFile) {
-        const fileExt = screenshotFile.name.split('.').pop();
-        const fileName = `${order.id}-${Date.now()}.${fileExt}`;
-        
-        const { data: uploadData, error: uploadError } = await supabase.storage
-          .from('payment-screenshots')
-          .upload(fileName, screenshotFile);
+      const fileExt = screenshotFile.name.split('.').pop();
+      const fileName = `${order.id}-${Date.now()}.${fileExt}`;
 
-        if (uploadError) throw uploadError;
+      const { error: uploadError } = await supabase.storage
+        .from('payment-screenshots')
+        .upload(fileName, screenshotFile);
 
-        const { data: urlData } = supabase.storage
-          .from('payment-screenshots')
-          .getPublicUrl(fileName);
-        
-        screenshotUrl = urlData.publicUrl;
-      }
+      if (uploadError) throw uploadError;
 
-      // Update order with verification details - payment_status stays 'unpaid' until shopkeeper verifies
+      const { data: urlData } = supabase.storage
+        .from('payment-screenshots')
+        .getPublicUrl(fileName);
+
+      screenshotUrl = urlData.publicUrl;
+
+      // Update order with payment proof - payment_status stays 'unpaid' until shopkeeper verifies
       const { error } = await supabase
         .from('orders')
         .update({
           payment_screenshot_url: screenshotUrl,
-          utr_number: utrNumber || null,
+          utr_number: null,
         })
         .eq('id', order.id);
 
       if (error) throw error;
 
-      toast({ title: 'Payment details submitted. Waiting for shopkeeper to verify.' });
+      toast({ title: 'Screenshot submitted. Waiting for shopkeeper to verify.' });
       onPaymentSubmitted();
       onOpenChange(false);
       setStep('pay');
-      setUtrNumber('');
       setScreenshotFile(null);
     } catch (error) {
       console.error('Error submitting payment:', error);
-      toast({ title: 'Failed to submit payment', variant: 'destructive' });
+      toast({
+        title: 'Failed to submit payment',
+        description: error instanceof Error ? error.message : undefined,
+        variant: 'destructive',
+      });
     } finally {
       setIsSubmitting(false);
     }
@@ -107,7 +105,6 @@ const UPIPaymentDialog = ({ order, open, onOpenChange, onPaymentSubmitted }: UPI
   const handleClose = () => {
     onOpenChange(false);
     setStep('pay');
-    setUtrNumber('');
     setScreenshotFile(null);
   };
 
@@ -158,27 +155,8 @@ const UPIPaymentDialog = ({ order, open, onOpenChange, onPaymentSubmitted }: UPI
         ) : (
           <div className="space-y-4">
             <p className="text-sm text-muted-foreground">
-              Enter your UTR/Transaction ID or upload a screenshot for verification
+              Upload your payment screenshot so the shopkeeper can verify the payment.
             </p>
-
-            <div className="space-y-2">
-              <Label htmlFor="utr">UTR / Transaction ID</Label>
-              <Input
-                id="utr"
-                placeholder="Enter 12-digit UTR number"
-                value={utrNumber}
-                onChange={(e) => setUtrNumber(e.target.value)}
-              />
-            </div>
-
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <span className="w-full border-t border-border" />
-              </div>
-              <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-background px-2 text-muted-foreground">or</span>
-              </div>
-            </div>
 
             <div className="space-y-2">
               <Label htmlFor="screenshot">Payment Screenshot</Label>
@@ -210,9 +188,9 @@ const UPIPaymentDialog = ({ order, open, onOpenChange, onPaymentSubmitted }: UPI
               <Button variant="outline" onClick={() => setStep('pay')} className="flex-1">
                 Back
               </Button>
-              <Button 
-                onClick={handleSubmitVerification} 
-                disabled={isSubmitting || (!utrNumber && !screenshotFile)}
+              <Button
+                onClick={handleSubmitVerification}
+                disabled={isSubmitting || !screenshotFile}
                 className="flex-1"
               >
                 {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Submit'}

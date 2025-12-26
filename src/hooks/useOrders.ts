@@ -170,6 +170,34 @@ export const useOrders = (filterByUser = true, shopId?: string) => {
     return true;
   };
 
+  const cancelPendingOrder = async (orderId: string) => {
+    const { data, error } = await supabase
+      .from('orders')
+      .update({ status: 'cancelled', updated_at: new Date().toISOString() })
+      .eq('id', orderId)
+      .eq('status', 'pending')
+      .select('id');
+
+    if (error) {
+      console.error('Error cancelling order:', error);
+      toast({ title: 'Cancel failed', description: error.message, variant: 'destructive' });
+      return false;
+    }
+
+    if (!data || data.length === 0) {
+      toast({
+        title: 'Cannot cancel this order',
+        description: 'This order was already accepted or updated by the shopkeeper.',
+        variant: 'destructive',
+      });
+      await fetchOrders();
+      return false;
+    }
+
+    await fetchOrders();
+    return true;
+  };
+
   const updatePaymentStatus = async (orderId: string, paymentStatus: Order['payment_status']) => {
     const { error } = await supabase
       .from('orders')
@@ -183,5 +211,5 @@ export const useOrders = (filterByUser = true, shopId?: string) => {
     return true;
   };
 
-  return { orders, isLoading, updateOrderStatus, updatePaymentStatus, refetch: fetchOrders };
+  return { orders, isLoading, updateOrderStatus, cancelPendingOrder, updatePaymentStatus, refetch: fetchOrders };
 };
