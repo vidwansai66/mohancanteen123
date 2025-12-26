@@ -7,6 +7,7 @@ export interface CartItem {
   price: number;
   quantity: number;
   image_url?: string;
+  shop_id: string;
 }
 
 interface CartState {
@@ -15,8 +16,11 @@ interface CartState {
   removeItem: (id: string) => void;
   updateQuantity: (id: string, quantity: number) => void;
   clearCart: () => void;
+  clearShopCart: (shopId: string) => void;
   getTotalItems: () => number;
   getTotalPrice: () => number;
+  getShopItems: (shopId: string) => CartItem[];
+  getShopTotalPrice: (shopId: string) => number;
 }
 
 export const useCartStore = create<CartState>()(
@@ -26,11 +30,11 @@ export const useCartStore = create<CartState>()(
       
       addItem: (item) => {
         set((state) => {
-          const existingItem = state.items.find((i) => i.id === item.id);
+          const existingItem = state.items.find((i) => i.id === item.id && i.shop_id === item.shop_id);
           if (existingItem) {
             return {
               items: state.items.map((i) =>
-                i.id === item.id
+                i.id === item.id && i.shop_id === item.shop_id
                   ? { ...i, quantity: i.quantity + 1 }
                   : i
               ),
@@ -60,6 +64,10 @@ export const useCartStore = create<CartState>()(
       
       clearCart: () => set({ items: [] }),
       
+      clearShopCart: (shopId) => set((state) => ({
+        items: state.items.filter(i => i.shop_id !== shopId)
+      })),
+      
       getTotalItems: () => {
         return get().items.reduce((total, item) => total + item.quantity, 0);
       },
@@ -69,6 +77,16 @@ export const useCartStore = create<CartState>()(
           (total, item) => total + item.price * item.quantity,
           0
         );
+      },
+      
+      getShopItems: (shopId) => {
+        return get().items.filter(item => item.shop_id === shopId);
+      },
+      
+      getShopTotalPrice: (shopId) => {
+        return get().items
+          .filter(item => item.shop_id === shopId)
+          .reduce((total, item) => total + item.price * item.quantity, 0);
       },
     }),
     {

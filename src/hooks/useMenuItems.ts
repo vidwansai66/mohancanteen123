@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useUser } from '@clerk/clerk-react';
 import { supabase } from '@/integrations/supabase/client';
 
 export interface MenuItem {
@@ -9,20 +10,27 @@ export interface MenuItem {
   category: 'breakfast' | 'lunch' | 'snacks' | 'drinks';
   image_url: string | null;
   in_stock: boolean;
+  shop_id: string | null;
   created_at: string;
   updated_at: string;
 }
 
-export const useMenuItems = () => {
+export const useMenuItems = (shopId?: string) => {
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   const fetchMenuItems = async () => {
-    const { data, error } = await supabase
+    let query = supabase
       .from('menu_items')
       .select('*')
       .order('category', { ascending: true })
       .order('name', { ascending: true });
+
+    if (shopId) {
+      query = query.eq('shop_id', shopId);
+    }
+
+    const { data, error } = await query;
 
     if (error) {
       console.error('Error fetching menu items:', error);
@@ -34,7 +42,7 @@ export const useMenuItems = () => {
 
   useEffect(() => {
     fetchMenuItems();
-  }, []);
+  }, [shopId]);
 
   const addMenuItem = async (item: Omit<MenuItem, 'id' | 'created_at' | 'updated_at'>) => {
     const { data, error } = await supabase

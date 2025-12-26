@@ -82,6 +82,7 @@ export type Database = {
           in_stock: boolean
           name: string
           price: number
+          shop_id: string | null
           updated_at: string
         }
         Insert: {
@@ -93,6 +94,7 @@ export type Database = {
           in_stock?: boolean
           name: string
           price: number
+          shop_id?: string | null
           updated_at?: string
         }
         Update: {
@@ -104,9 +106,18 @@ export type Database = {
           in_stock?: boolean
           name?: string
           price?: number
+          shop_id?: string | null
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "menu_items_shop_id_fkey"
+            columns: ["shop_id"]
+            isOneToOne: false
+            referencedRelation: "shops"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       order_items: {
         Row: {
@@ -161,6 +172,7 @@ export type Database = {
           payment_screenshot_url: string | null
           payment_status: string
           payment_verified: boolean | null
+          shop_id: string | null
           status: string
           total: number
           updated_at: string
@@ -174,6 +186,7 @@ export type Database = {
           payment_screenshot_url?: string | null
           payment_status?: string
           payment_verified?: boolean | null
+          shop_id?: string | null
           status?: string
           total: number
           updated_at?: string
@@ -187,13 +200,22 @@ export type Database = {
           payment_screenshot_url?: string | null
           payment_status?: string
           payment_verified?: boolean | null
+          shop_id?: string | null
           status?: string
           total?: number
           updated_at?: string
           user_id?: string
           utr_number?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "orders_shop_id_fkey"
+            columns: ["shop_id"]
+            isOneToOne: false
+            referencedRelation: "shops"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       profiles: {
         Row: {
@@ -270,6 +292,42 @@ export type Database = {
           id?: string
           used?: boolean
           user_id?: string
+        }
+        Relationships: []
+      }
+      shops: {
+        Row: {
+          created_at: string
+          id: string
+          is_open: boolean
+          owner_user_id: string
+          reopen_time: string | null
+          shop_name: string
+          updated_at: string
+          upi_id: string | null
+          upi_name: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_open?: boolean
+          owner_user_id: string
+          reopen_time?: string | null
+          shop_name: string
+          updated_at?: string
+          upi_id?: string | null
+          upi_name?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_open?: boolean
+          owner_user_id?: string
+          reopen_time?: string | null
+          shop_name?: string
+          updated_at?: string
+          upi_id?: string | null
+          upi_name?: string | null
         }
         Relationships: []
       }

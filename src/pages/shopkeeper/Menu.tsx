@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMenuItems, MenuItem } from '@/hooks/useMenuItems';
+import { useMyShop } from '@/hooks/useShops';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,7 +9,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { ArrowLeft, Plus, Pencil, Trash2, ImageOff } from 'lucide-react';
+import { ArrowLeft, Plus, Pencil, Trash2, ImageOff, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Label } from '@/components/ui/label';
 
@@ -17,12 +18,21 @@ const categories = ['breakfast', 'lunch', 'snacks', 'drinks'] as const;
 const ShopkeeperMenu = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { menuItems, isLoading, addMenuItem, updateMenuItem, deleteMenuItem, toggleStock } = useMenuItems();
+  const { shop, isLoading: shopLoading } = useMyShop();
+  const { menuItems, isLoading, addMenuItem, updateMenuItem, deleteMenuItem, toggleStock } = useMenuItems(shop?.id);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<MenuItem | null>(null);
   const [form, setForm] = useState({ name: '', description: '', price: '', category: 'snacks' as MenuItem['category'], image_url: '' });
 
   const resetForm = () => setForm({ name: '', description: '', price: '', category: 'snacks', image_url: '' });
+
+  if (shopLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   const handleSubmit = async () => {
     if (!form.name || !form.price) {
@@ -33,7 +43,7 @@ const ShopkeeperMenu = () => {
       await updateMenuItem(editingItem.id, { ...form, price: parseFloat(form.price) });
       toast({ title: 'Item updated' });
     } else {
-      await addMenuItem({ ...form, price: parseFloat(form.price), in_stock: true });
+      await addMenuItem({ ...form, price: parseFloat(form.price), in_stock: true, shop_id: shop?.id || null });
       toast({ title: 'Item added' });
     }
     setDialogOpen(false);
