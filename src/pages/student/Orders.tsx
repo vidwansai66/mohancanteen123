@@ -6,13 +6,33 @@ import BottomNav from '@/components/student/BottomNav';
 import CartDrawer from '@/components/student/CartDrawer';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ClipboardList } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
 
 const StudentOrders = () => {
-  const { orders, isLoading } = useOrders(true);
+  const { toast } = useToast();
+  const { orders, isLoading, updateOrderStatus, updatePaymentStatus } = useOrders(true);
   const [cartOpen, setCartOpen] = useState(false);
 
-  const activeOrders = orders.filter((o) => !['completed', 'rejected'].includes(o.status));
-  const pastOrders = orders.filter((o) => ['completed', 'rejected'].includes(o.status)).slice(0, 10);
+  const activeOrders = orders.filter((o) => !['completed', 'rejected', 'cancelled'].includes(o.status));
+  const pastOrders = orders.filter((o) => ['completed', 'rejected', 'cancelled'].includes(o.status)).slice(0, 10);
+
+  const handlePayNow = async (orderId: string) => {
+    const ok = await updatePaymentStatus(orderId, 'paid');
+    if (ok) {
+      toast({ title: 'Payment marked as paid' });
+    } else {
+      toast({ title: 'Payment failed', variant: 'destructive' });
+    }
+  };
+
+  const handleCancelOrder = async (orderId: string) => {
+    const ok = await updateOrderStatus(orderId, 'cancelled');
+    if (ok) {
+      toast({ title: 'Order cancelled' });
+    } else {
+      toast({ title: 'Cancel failed', variant: 'destructive' });
+    }
+  };
 
   return (
     <div className="min-h-screen bg-background pb-20">
@@ -36,7 +56,14 @@ const StudentOrders = () => {
                 <p className="text-muted-foreground">No active orders</p>
               </div>
             ) : (
-              activeOrders.map((order) => <OrderCard key={order.id} order={order} />)
+              activeOrders.map((order) => (
+                <OrderCard
+                  key={order.id}
+                  order={order}
+                  onCancel={order.status === 'pending' ? () => handleCancelOrder(order.id) : undefined}
+                  onPayNow={order.status === 'accepted' && order.payment_status === 'unpaid' ? () => handlePayNow(order.id) : undefined}
+                />
+              ))
             )}
           </TabsContent>
 
