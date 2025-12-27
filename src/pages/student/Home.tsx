@@ -1,7 +1,7 @@
 import { useState, useMemo, useCallback } from 'react';
 import { useUser, UserButton } from '@clerk/clerk-react';
 import { useMenuItems } from '@/hooks/useMenuItems';
-import { useShops, Shop } from '@/hooks/useShops';
+import { useShops, PublicShop } from '@/hooks/useShops';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -34,7 +34,7 @@ const useDebounce = (value: string, delay: number) => {
 const StudentHome = () => {
   const { user } = useUser();
   const { shops, isLoading: shopsLoading, refetch: refetchShops } = useShops();
-  const [selectedShop, setSelectedShop] = useState<Shop | null>(null);
+  const [selectedShop, setSelectedShop] = useState<PublicShop | null>(null);
   const { menuItems, isLoading: menuLoading } = useMenuItems(selectedShop?.id);
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState<string>('all');

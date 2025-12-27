@@ -1,11 +1,11 @@
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Store, ChevronRight } from 'lucide-react';
-import { Shop } from '@/hooks/useShops';
+import { PublicShop } from '@/hooks/useShops';
 import { cn } from '@/lib/utils';
 
 interface ShopCardProps {
-  shop: Shop;
+  shop: PublicShop;
   onClick: () => void;
 }
 
