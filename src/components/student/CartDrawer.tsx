@@ -33,33 +33,21 @@ const CartDrawer = ({ open, onOpenChange, shopOpen = true, shopId }: CartDrawerP
 
     setIsPlacing(true);
     try {
-      const { data: order, error: orderError } = await supabase
-        .from('orders')
-        .insert({
-          user_id: user.id,
-          shop_id: shopId,
-          total: totalPrice,
-          notes: notes || null,
-          status: 'pending',
-        })
-        .select()
-        .single();
-
-      if (orderError) throw orderError;
-
-      const orderItems = displayItems.map((item) => ({
-        order_id: order.id,
+      // Prepare items with only IDs and quantities - prices validated server-side
+      const items = displayItems.map((item) => ({
         menu_item_id: item.id,
         quantity: item.quantity,
-        price: item.price,
-        item_name: item.name,
       }));
 
-      const { error: itemsError } = await supabase
-        .from('order_items')
-        .insert(orderItems);
+      // Call RPC function for server-side validated order creation
+      const { data: orderId, error } = await supabase.rpc('create_validated_order', {
+        p_user_id: user.id,
+        p_shop_id: shopId,
+        p_notes: notes || null,
+        p_items: items,
+      });
 
-      if (itemsError) throw itemsError;
+      if (error) throw error;
 
       clearShopCart(shopId);
       setNotes('');
@@ -74,11 +62,11 @@ const CartDrawer = ({ open, onOpenChange, shopOpen = true, shopId }: CartDrawerP
         title: 'Order Placed! 🎉',
         description: 'Waiting for shopkeeper to accept your order.',
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error placing order:', error);
       toast({
         title: 'Error',
-        description: 'Failed to place order. Please try again.',
+        description: error?.message || 'Failed to place order. Please try again.',
         variant: 'destructive',
       });
     } finally {

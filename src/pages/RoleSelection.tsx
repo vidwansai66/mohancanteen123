@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate, Navigate } from 'react-router-dom';
-import { useUser } from '@clerk/clerk-react';
+import { useUser, useAuth } from '@clerk/clerk-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,7 +8,6 @@ import { Label } from '@/components/ui/label';
 import { UtensilsCrossed, GraduationCap, Store, ArrowLeft, Loader2, Mail, KeyRound } from 'lucide-react';
 import { useUserRole } from '@/hooks/useUserRole';
 import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
 import { useSupabaseWithClerk } from '@/hooks/useSupabaseWithClerk';
 import {
   InputOTP,
@@ -21,6 +20,7 @@ type Step = 'select' | 'verify' | 'shop-setup';
 const RoleSelection = () => {
   const navigate = useNavigate();
   const { user } = useUser();
+  const { getToken } = useAuth();
   const { role, setUserRole } = useUserRole();
   const { toast } = useToast();
   const supabaseWithClerk = useSupabaseWithClerk();
@@ -63,14 +63,32 @@ const RoleSelection = () => {
     
     setIsLoading(true);
     try {
-      const { data, error } = await supabase.functions.invoke('send-shopkeeper-verification', {
-        body: {
-          userId: user.id,
-          userEmail: user.primaryEmailAddress?.emailAddress || 'unknown',
-        },
-      });
+      // Get Clerk session token for JWT verification
+      const token = await getToken();
+      
+      if (!token) {
+        throw new Error('Not authenticated');
+      }
+      
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-shopkeeper-verification`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            userEmail: user.primaryEmailAddress?.emailAddress || 'unknown',
+          }),
+        }
+      );
 
-      if (error) throw error;
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to send verification code');
+      }
 
       setCodeSent(true);
       toast({
@@ -81,7 +99,7 @@ const RoleSelection = () => {
       console.error('Error sending code:', error);
       toast({
         title: "Error",
-        description: "Failed to send verification code. Please try again.",
+        description: error.message || "Failed to send verification code. Please try again.",
         variant: "destructive",
       });
     } finally {
@@ -94,14 +112,31 @@ const RoleSelection = () => {
 
     setIsLoading(true);
     try {
-      const { data, error } = await supabase.functions.invoke('verify-shopkeeper-code', {
-        body: {
-          userId: user.id,
-          code: verificationCode,
-        },
-      });
+      const token = await getToken();
+      
+      if (!token) {
+        throw new Error('Not authenticated');
+      }
+      
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/verify-shopkeeper-code`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            code: verificationCode,
+          }),
+        }
+      );
 
-      if (error) throw error;
+      const data = await response.json();
+
+      if (!response.ok && response.status !== 200) {
+        throw new Error(data.error || 'Failed to verify code');
+      }
 
       if (data?.valid) {
         // Move to shop setup step
@@ -109,7 +144,7 @@ const RoleSelection = () => {
       } else {
         toast({
           title: "Invalid Code",
-          description: "The verification code is incorrect or has expired.",
+          description: data.error || "The verification code is incorrect or has expired.",
           variant: "destructive",
         });
       }
@@ -117,7 +152,7 @@ const RoleSelection = () => {
       console.error('Error verifying code:', error);
       toast({
         title: "Error",
-        description: "Failed to verify code. Please try again.",
+        description: error.message || "Failed to verify code. Please try again.",
         variant: "destructive",
       });
     } finally {

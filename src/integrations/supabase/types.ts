@@ -446,6 +446,15 @@ export type Database = {
           order_ids: string[]
         }[]
       }
+      create_validated_order: {
+        Args: {
+          p_items: Json
+          p_notes: string
+          p_shop_id: string
+          p_user_id: string
+        }
+        Returns: string
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
