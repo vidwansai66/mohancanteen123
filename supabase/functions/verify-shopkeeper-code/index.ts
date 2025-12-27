@@ -11,6 +11,24 @@ interface VerifyRequest {
   code: string;
 }
 
+// In-memory rate limiter (resets on function cold start, but provides basic protection)
+const rateLimits = new Map<string, { count: number; resetAt: number }>();
+
+function checkRateLimit(identifier: string, maxAttempts: number, windowMs: number): boolean {
+  const now = Date.now();
+  const record = rateLimits.get(identifier);
+
+  if (!record || record.resetAt < now) {
+    rateLimits.set(identifier, { count: 1, resetAt: now + windowMs });
+    return true;
+  }
+
+  if (record.count >= maxAttempts) return false;
+
+  record.count++;
+  return true;
+}
+
 const handler = async (req: Request): Promise<Response> => {
   // Handle CORS preflight requests
   if (req.method === "OPTIONS") {
@@ -27,6 +45,21 @@ const handler = async (req: Request): Promise<Response> => {
         status: 400,
         headers: { "Content-Type": "application/json", ...corsHeaders },
       });
+    }
+
+    // Rate limit: 5 verification attempts per 10 minutes per userId
+    if (!checkRateLimit(userId, 5, 10 * 60 * 1000)) {
+      console.log(`Rate limit exceeded for user: ${userId}`);
+      return new Response(
+        JSON.stringify({ 
+          valid: false, 
+          error: "Too many verification attempts. Please request a new code after 10 minutes." 
+        }),
+        {
+          status: 429,
+          headers: { "Content-Type": "application/json", ...corsHeaders },
+        }
+      );
     }
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
