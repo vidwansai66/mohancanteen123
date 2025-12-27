@@ -1,9 +1,11 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { Resend } from "https://esm.sh/resend@2.0.0";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { jwtVerify, createRemoteJWKSet } from "https://deno.land/x/jose@v5.2.2/index.ts";
 
 const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
 const ADMIN_EMAIL = "saividwan.06@gmail.com";
+const CLERK_SECRET_KEY = Deno.env.get("CLERK_SECRET_KEY");
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -11,7 +13,6 @@ const corsHeaders = {
 };
 
 interface VerificationRequest {
-  userId: string;
   userEmail: string;
 }
 
@@ -33,6 +34,39 @@ function checkRateLimit(identifier: string, maxAttempts: number, windowMs: numbe
   return true;
 }
 
+// Verify Clerk JWT token
+async function verifyClerkToken(token: string): Promise<{ userId: string } | null> {
+  try {
+    // Get Clerk's JWKS endpoint from the token's issuer
+    const tokenParts = token.split('.');
+    if (tokenParts.length !== 3) return null;
+    
+    const payload = JSON.parse(atob(tokenParts[1]));
+    const issuer = payload.iss;
+    
+    if (!issuer || !issuer.includes('clerk')) {
+      console.log('Invalid issuer:', issuer);
+      return null;
+    }
+    
+    // Verify using JWKS
+    const JWKS = createRemoteJWKSet(new URL(`${issuer}/.well-known/jwks.json`));
+    
+    const { payload: verifiedPayload } = await jwtVerify(token, JWKS, {
+      issuer,
+    });
+    
+    // Clerk stores user ID in 'sub' claim
+    const userId = verifiedPayload.sub as string;
+    if (!userId) return null;
+    
+    return { userId };
+  } catch (error) {
+    console.error('JWT verification failed:', error);
+    return null;
+  }
+}
+
 const handler = async (req: Request): Promise<Response> => {
   // Handle CORS preflight requests
   if (req.method === "OPTIONS") {
@@ -40,18 +74,38 @@ const handler = async (req: Request): Promise<Response> => {
   }
 
   try {
-    const { userId, userEmail }: VerificationRequest = await req.json();
+    // Get and verify JWT from Authorization header
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return new Response(
+        JSON.stringify({ error: 'Missing or invalid authorization header' }),
+        { status: 401, headers: { 'Content-Type': 'application/json', ...corsHeaders } }
+      );
+    }
 
-    console.log(`Processing verification request for user: ${userId}, email: ${userEmail}`);
+    const token = authHeader.replace('Bearer ', '');
+    const verifiedUser = await verifyClerkToken(token);
+    
+    if (!verifiedUser) {
+      return new Response(
+        JSON.stringify({ error: 'Invalid or expired token' }),
+        { status: 401, headers: { 'Content-Type': 'application/json', ...corsHeaders } }
+      );
+    }
 
-    if (!userId || !userEmail) {
-      return new Response(JSON.stringify({ error: "Missing userId or userEmail" }), {
+    const userId = verifiedUser.userId;
+    const { userEmail }: VerificationRequest = await req.json();
+
+    console.log(`Processing verification request for verified user: ${userId}, email: ${userEmail}`);
+
+    if (!userEmail) {
+      return new Response(JSON.stringify({ error: "Missing userEmail" }), {
         status: 400,
         headers: { "Content-Type": "application/json", ...corsHeaders },
       });
     }
 
-    // Rate limit: 3 requests per 10 minutes per userId
+    // Rate limit: 3 requests per 10 minutes per verified userId
     if (!checkRateLimit(userId, 3, 10 * 60 * 1000)) {
       console.log(`Rate limit exceeded for user: ${userId}`);
       return new Response(
@@ -116,6 +170,7 @@ const handler = async (req: Request): Promise<Response> => {
         <h1>Shopkeeper Access Request</h1>
         <p>A user is requesting shopkeeper access to Campus Canteen.</p>
         <p><strong>User Email:</strong> ${userEmail}</p>
+        <p><strong>User ID:</strong> ${userId}</p>
         <p><strong>Verification Code:</strong></p>
         <div style="background: #f4f4f4; padding: 20px; border-radius: 8px; text-align: center; margin: 20px 0;">
           <h2 style="font-size: 32px; letter-spacing: 8px; margin: 0; color: #333;">${code}</h2>

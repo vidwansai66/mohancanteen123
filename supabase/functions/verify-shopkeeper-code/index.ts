@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { jwtVerify, createRemoteJWKSet } from "https://deno.land/x/jose@v5.2.2/index.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -7,7 +8,6 @@ const corsHeaders = {
 };
 
 interface VerifyRequest {
-  userId: string;
   code: string;
 }
 
@@ -29,6 +29,39 @@ function checkRateLimit(identifier: string, maxAttempts: number, windowMs: numbe
   return true;
 }
 
+// Verify Clerk JWT token
+async function verifyClerkToken(token: string): Promise<{ userId: string } | null> {
+  try {
+    // Get Clerk's JWKS endpoint from the token's issuer
+    const tokenParts = token.split('.');
+    if (tokenParts.length !== 3) return null;
+    
+    const payload = JSON.parse(atob(tokenParts[1]));
+    const issuer = payload.iss;
+    
+    if (!issuer || !issuer.includes('clerk')) {
+      console.log('Invalid issuer:', issuer);
+      return null;
+    }
+    
+    // Verify using JWKS
+    const JWKS = createRemoteJWKSet(new URL(`${issuer}/.well-known/jwks.json`));
+    
+    const { payload: verifiedPayload } = await jwtVerify(token, JWKS, {
+      issuer,
+    });
+    
+    // Clerk stores user ID in 'sub' claim
+    const userId = verifiedPayload.sub as string;
+    if (!userId) return null;
+    
+    return { userId };
+  } catch (error) {
+    console.error('JWT verification failed:', error);
+    return null;
+  }
+}
+
 const handler = async (req: Request): Promise<Response> => {
   // Handle CORS preflight requests
   if (req.method === "OPTIONS") {
@@ -36,18 +69,38 @@ const handler = async (req: Request): Promise<Response> => {
   }
 
   try {
-    const { userId, code }: VerifyRequest = await req.json();
+    // Get and verify JWT from Authorization header
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return new Response(
+        JSON.stringify({ error: 'Missing or invalid authorization header', valid: false }),
+        { status: 401, headers: { 'Content-Type': 'application/json', ...corsHeaders } }
+      );
+    }
 
-    console.log(`Verifying code for user: ${userId}`);
+    const token = authHeader.replace('Bearer ', '');
+    const verifiedUser = await verifyClerkToken(token);
+    
+    if (!verifiedUser) {
+      return new Response(
+        JSON.stringify({ error: 'Invalid or expired token', valid: false }),
+        { status: 401, headers: { 'Content-Type': 'application/json', ...corsHeaders } }
+      );
+    }
 
-    if (!userId || !code) {
-      return new Response(JSON.stringify({ error: "Missing userId or code", valid: false }), {
+    const userId = verifiedUser.userId;
+    const { code }: VerifyRequest = await req.json();
+
+    console.log(`Verifying code for verified user: ${userId}`);
+
+    if (!code) {
+      return new Response(JSON.stringify({ error: "Missing code", valid: false }), {
         status: 400,
         headers: { "Content-Type": "application/json", ...corsHeaders },
       });
     }
 
-    // Rate limit: 5 verification attempts per 10 minutes per userId
+    // Rate limit: 5 verification attempts per 10 minutes per verified userId
     if (!checkRateLimit(userId, 5, 10 * 60 * 1000)) {
       console.log(`Rate limit exceeded for user: ${userId}`);
       return new Response(
@@ -66,7 +119,7 @@ const handler = async (req: Request): Promise<Response> => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Find the code
+    // Find the code - only codes created for THIS verified user
     const { data: codeData, error: fetchError } = await supabase
       .from("shopkeeper_verification_codes")
       .select("*")
