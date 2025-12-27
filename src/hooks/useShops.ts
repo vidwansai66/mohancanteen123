@@ -31,11 +31,8 @@ export const useShops = () => {
   const [isLoading, setIsLoading] = useState(true);
 
   const fetchShops = async () => {
-    // Use the public view for browsing shops (no sensitive data)
-    const { data, error } = await supabase
-      .from('shops_public')
-      .select('*')
-      .order('shop_name', { ascending: true });
+    // Use the security definer function to get public shop data
+    const { data, error } = await supabase.rpc('get_public_shops');
 
     if (error) {
       console.error('Error fetching shops:', error);
