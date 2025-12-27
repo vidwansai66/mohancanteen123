@@ -1,9 +1,9 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useUser } from '@clerk/clerk-react';
 import { useSupabaseWithClerk } from '@/hooks/useSupabaseWithClerk';
-import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { toast as sonnerToast } from 'sonner';
+
 
 export interface OrderItem {
   id: string;
@@ -154,9 +154,16 @@ export const useOrders = (filterByUser = true, shopId?: string) => {
 
     // Create unique channel name to avoid conflicts
     const channelName = `orders-realtime-${shopId || 'all'}-${filterByUser ? 'user' : 'shop'}-${user?.id || 'anon'}`;
-    
-    // Subscribe to realtime updates
-    const channel = supabase
+
+    console.log('Orders realtime: subscribing with Clerk-aware client', {
+      channelName,
+      filterByUser,
+      shopId: shopIdRef.current,
+      userId: userIdRef.current,
+    });
+
+    // Subscribe to realtime updates (MUST use the Clerk-aware client so RLS works)
+    const channel = supabaseWithClerk
       .channel(channelName)
       .on(
         'postgres_changes',
@@ -168,13 +175,13 @@ export const useOrders = (filterByUser = true, shopId?: string) => {
         (payload) => {
           console.log('🔔 New order received:', payload);
           const newOrder = payload.new as any;
-          
+
           // Check if this order is relevant using refs for latest values
           if (shopIdRef.current && newOrder.shop_id !== shopIdRef.current) return;
           if (filterByUser && userIdRef.current && newOrder.user_id !== userIdRef.current) return;
-          
+
           fetchOrders();
-          
+
           if (!filterByUser && shopIdRef.current) {
             // Shopkeeper: New order notification with sound
             playNotificationSound('newOrder');
@@ -196,25 +203,27 @@ export const useOrders = (filterByUser = true, shopId?: string) => {
           console.log('📝 Order updated:', payload);
           const updatedOrder = payload.new as any;
           const oldOrder = payload.old as any;
-          
+
           // Check if this order is relevant using refs
           if (shopIdRef.current && updatedOrder.shop_id !== shopIdRef.current) return;
           if (filterByUser && userIdRef.current && updatedOrder.user_id !== userIdRef.current) return;
-          
+
           // Immediately update local state for faster UI response
-          setOrders(prev => prev.map(order => 
-            order.id === updatedOrder.id 
-              ? { 
-                  ...order, 
-                  status: updatedOrder.status, 
-                  payment_status: updatedOrder.payment_status, 
-                  payment_verified: updatedOrder.payment_verified, 
-                  payment_screenshot_url: updatedOrder.payment_screenshot_url,
-                  updated_at: updatedOrder.updated_at 
-                }
-              : order
-          ));
-          
+          setOrders((prev) =>
+            prev.map((order) =>
+              order.id === updatedOrder.id
+                ? {
+                    ...order,
+                    status: updatedOrder.status,
+                    payment_status: updatedOrder.payment_status,
+                    payment_verified: updatedOrder.payment_verified,
+                    payment_screenshot_url: updatedOrder.payment_screenshot_url,
+                    updated_at: updatedOrder.updated_at,
+                  }
+                : order
+            )
+          );
+
           // Student side: Show toast for status changes with sound
           if (filterByUser && oldOrder.status !== updatedOrder.status) {
             playNotificationSound('orderUpdate');
@@ -224,7 +233,7 @@ export const useOrders = (filterByUser = true, shopId?: string) => {
               preparing: '👨‍🍳 Your order is being prepared',
               ready: '🎉 Your order is ready for pickup!',
               completed: '✅ Order completed',
-              cancelled: '❌ Order was cancelled'
+              cancelled: '❌ Order was cancelled',
             };
             const message = statusLabels[updatedOrder.status];
             if (message) {
@@ -234,16 +243,20 @@ export const useOrders = (filterByUser = true, shopId?: string) => {
               });
             }
           }
-          
+
           // Student side: Payment verified notification
-          if (filterByUser && oldOrder.payment_status === 'unpaid' && updatedOrder.payment_status === 'paid') {
+          if (
+            filterByUser &&
+            oldOrder.payment_status === 'unpaid' &&
+            updatedOrder.payment_status === 'paid'
+          ) {
             playNotificationSound('payment');
             sonnerToast.success('✅ Payment Verified', {
               description: 'Your payment has been confirmed by the shop.',
               duration: 5000,
             });
           }
-          
+
           // Shopkeeper side: Payment screenshot submitted
           if (!filterByUser && !oldOrder.payment_screenshot_url && updatedOrder.payment_screenshot_url) {
             playNotificationSound('payment');
@@ -265,15 +278,21 @@ export const useOrders = (filterByUser = true, shopId?: string) => {
         },
         (payload) => {
           console.log('🗑️ Order deleted:', payload);
-          setOrders(prev => prev.filter(order => order.id !== (payload.old as any).id));
+          setOrders((prev) => prev.filter((order) => order.id !== (payload.old as any).id));
         }
       )
       .subscribe((status) => {
         console.log('Orders realtime subscription status:', status);
       });
 
+    // Fallback polling to keep UI "live" even if realtime disconnects / is filtered
+    const pollId = window.setInterval(() => {
+      fetchOrders();
+    }, 8000);
+
     return () => {
-      supabase.removeChannel(channel);
+      window.clearInterval(pollId);
+      supabaseWithClerk.removeChannel(channel);
     };
   }, [user?.id, filterByUser, shopId]);
 

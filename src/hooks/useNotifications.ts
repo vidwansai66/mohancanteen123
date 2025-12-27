@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useUser } from '@clerk/clerk-react';
-import { supabase } from '@/integrations/supabase/client';
 import { useSupabaseWithClerk } from '@/hooks/useSupabaseWithClerk';
 import { toast as sonnerToast } from 'sonner';
+
 
 export interface Notification {
   id: string;
@@ -67,7 +67,12 @@ export const useNotifications = () => {
   useEffect(() => {
     if (!user?.id) return;
 
-    const channel = supabase
+    console.log('Notifications realtime: subscribing with Clerk-aware client', {
+      channelName: `notifications-realtime-${user.id}`,
+      userId: user.id,
+    });
+
+    const channel = supabaseWithClerk
       .channel(`notifications-realtime-${user.id}`)
       .on(
         'postgres_changes',
@@ -75,25 +80,25 @@ export const useNotifications = () => {
           event: 'INSERT',
           schema: 'public',
           table: 'notifications',
-          filter: `user_id=eq.${user.id}`
+          filter: `user_id=eq.${user.id}`,
         },
         (payload) => {
           const newNotification = payload.new as Notification;
           console.log('🔔 New notification received:', newNotification);
-          
+
           // Play notification sound
           playNotificationSound();
-          
+
           // Update state
-          setNotifications(prev => [newNotification, ...prev]);
-          setUnreadCount(prev => prev + 1);
-          
+          setNotifications((prev) => [newNotification, ...prev]);
+          setUnreadCount((prev) => prev + 1);
+
           // Show toast based on notification type
           const toastOptions = {
             description: newNotification.message,
             duration: 5000,
           };
-          
+
           if (newNotification.type === 'chat') {
             sonnerToast.info(`💬 ${newNotification.title}`, toastOptions);
           } else if (newNotification.type === 'payment') {
@@ -107,10 +112,16 @@ export const useNotifications = () => {
         console.log('Notifications realtime subscription status:', status);
       });
 
+    // Fallback polling to keep notifications fresh
+    const pollId = window.setInterval(() => {
+      fetchNotifications();
+    }, 15000);
+
     return () => {
-      supabase.removeChannel(channel);
+      window.clearInterval(pollId);
+      supabaseWithClerk.removeChannel(channel);
     };
-  }, [user?.id]);
+  }, [user?.id, supabaseWithClerk, fetchNotifications]);
 
   const markAsRead = async (notificationId: string) => {
     const { error } = await supabaseWithClerk
