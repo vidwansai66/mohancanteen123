@@ -33,8 +33,16 @@ const NotificationBell = () => {
     }
     
     if (notification.order_id) {
-      // Navigate to orders page - the order will be visible there
-      navigate('/student/orders');
+      // Navigate based on notification type and context
+      // Check current path to determine correct destination
+      const currentPath = window.location.pathname;
+      if (currentPath.startsWith('/shopkeeper')) {
+        // Shopkeeper stays on dashboard (orders are visible there)
+        // Just close the popover
+      } else {
+        // Student navigates to orders page
+        navigate('/student/orders');
+      }
     }
     setOpen(false);
   };

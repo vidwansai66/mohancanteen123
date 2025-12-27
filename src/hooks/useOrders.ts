@@ -1,8 +1,9 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useUser } from '@clerk/clerk-react';
 import { useSupabaseWithClerk } from '@/hooks/useSupabaseWithClerk';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { toast as sonnerToast } from 'sonner';
 
 export interface OrderItem {
   id: string;
@@ -37,12 +38,37 @@ export interface Order {
   };
 }
 
+// Audio URLs for notifications
+const AUDIO_URLS = {
+  newOrder: 'https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3',
+  orderUpdate: 'https://assets.mixkit.co/active_storage/sfx/2354/2354-preview.mp3',
+  payment: 'https://assets.mixkit.co/active_storage/sfx/2571/2571-preview.mp3',
+};
+
+const playNotificationSound = (type: keyof typeof AUDIO_URLS) => {
+  try {
+    const audio = new Audio(AUDIO_URLS[type]);
+    audio.volume = 0.5;
+    audio.play().catch(() => {});
+  } catch (e) {
+    // Ignore audio errors
+  }
+};
+
 export const useOrders = (filterByUser = true, shopId?: string) => {
   const { user } = useUser();
   const supabaseWithClerk = useSupabaseWithClerk();
   const { toast } = useToast();
   const [orders, setOrders] = useState<Order[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const userIdRef = useRef<string | undefined>();
+  const shopIdRef = useRef<string | undefined>();
+  
+  // Keep refs updated
+  useEffect(() => {
+    userIdRef.current = user?.id;
+    shopIdRef.current = shopId;
+  }, [user?.id, shopId]);
 
   const fetchOrders = useCallback(async () => {
     if (!user) {
@@ -127,7 +153,7 @@ export const useOrders = (filterByUser = true, shopId?: string) => {
     fetchOrders();
 
     // Create unique channel name to avoid conflicts
-    const channelName = `orders-realtime-${shopId || 'all'}-${filterByUser ? 'user' : 'shop'}`;
+    const channelName = `orders-realtime-${shopId || 'all'}-${filterByUser ? 'user' : 'shop'}-${user?.id || 'anon'}`;
     
     // Subscribe to realtime updates
     const channel = supabase
@@ -141,22 +167,20 @@ export const useOrders = (filterByUser = true, shopId?: string) => {
         },
         (payload) => {
           console.log('🔔 New order received:', payload);
-          // Check if this order is relevant to us
           const newOrder = payload.new as any;
-          if (shopId && newOrder.shop_id !== shopId) return;
-          if (filterByUser && user && newOrder.user_id !== user.id) return;
+          
+          // Check if this order is relevant using refs for latest values
+          if (shopIdRef.current && newOrder.shop_id !== shopIdRef.current) return;
+          if (filterByUser && userIdRef.current && newOrder.user_id !== userIdRef.current) return;
           
           fetchOrders();
-          if (!filterByUser && shopId) {
-            // Play notification sound for shopkeeper
-            try {
-              const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
-              audio.volume = 0.5;
-              audio.play().catch(() => {});
-            } catch (e) {}
-            toast({
-              title: '🔔 New Order!',
+          
+          if (!filterByUser && shopIdRef.current) {
+            // Shopkeeper: New order notification with sound
+            playNotificationSound('newOrder');
+            sonnerToast.success('🔔 New Order!', {
               description: 'A new order has been placed.',
+              duration: 5000,
             });
           }
         }
@@ -171,35 +195,64 @@ export const useOrders = (filterByUser = true, shopId?: string) => {
         (payload) => {
           console.log('📝 Order updated:', payload);
           const updatedOrder = payload.new as any;
+          const oldOrder = payload.old as any;
           
-          // Check if this order is relevant to us
-          if (shopId && updatedOrder.shop_id !== shopId) return;
-          if (filterByUser && user && updatedOrder.user_id !== user.id) return;
+          // Check if this order is relevant using refs
+          if (shopIdRef.current && updatedOrder.shop_id !== shopIdRef.current) return;
+          if (filterByUser && userIdRef.current && updatedOrder.user_id !== userIdRef.current) return;
           
           // Immediately update local state for faster UI response
           setOrders(prev => prev.map(order => 
             order.id === updatedOrder.id 
-              ? { ...order, status: updatedOrder.status, payment_status: updatedOrder.payment_status, payment_verified: updatedOrder.payment_verified, updated_at: updatedOrder.updated_at }
+              ? { 
+                  ...order, 
+                  status: updatedOrder.status, 
+                  payment_status: updatedOrder.payment_status, 
+                  payment_verified: updatedOrder.payment_verified, 
+                  payment_screenshot_url: updatedOrder.payment_screenshot_url,
+                  updated_at: updatedOrder.updated_at 
+                }
               : order
           ));
           
-          // Show toast for status changes on student side
-          if (filterByUser) {
+          // Student side: Show toast for status changes with sound
+          if (filterByUser && oldOrder.status !== updatedOrder.status) {
+            playNotificationSound('orderUpdate');
             const statusLabels: Record<string, string> = {
-              accepted: 'Your order has been accepted!',
-              rejected: 'Your order was rejected',
-              preparing: 'Your order is being prepared',
-              ready: 'Your order is ready for pickup!',
-              completed: 'Order completed',
-              cancelled: 'Order was cancelled'
+              accepted: '✅ Your order has been accepted!',
+              rejected: '❌ Your order was rejected',
+              preparing: '👨‍🍳 Your order is being prepared',
+              ready: '🎉 Your order is ready for pickup!',
+              completed: '✅ Order completed',
+              cancelled: '❌ Order was cancelled'
             };
             const message = statusLabels[updatedOrder.status];
             if (message) {
-              toast({
-                title: '📋 Order Update',
+              sonnerToast.info('Order Update', {
                 description: message,
+                duration: 5000,
               });
             }
+          }
+          
+          // Student side: Payment verified notification
+          if (filterByUser && oldOrder.payment_status === 'unpaid' && updatedOrder.payment_status === 'paid') {
+            playNotificationSound('payment');
+            sonnerToast.success('✅ Payment Verified', {
+              description: 'Your payment has been confirmed by the shop.',
+              duration: 5000,
+            });
+          }
+          
+          // Shopkeeper side: Payment screenshot submitted
+          if (!filterByUser && !oldOrder.payment_screenshot_url && updatedOrder.payment_screenshot_url) {
+            playNotificationSound('payment');
+            sonnerToast.success('💳 Payment Screenshot Submitted', {
+              description: 'A customer has submitted payment proof. Please verify.',
+              duration: 5000,
+            });
+            // Refetch to get the new screenshot URL
+            fetchOrders();
           }
         }
       )
@@ -222,7 +275,7 @@ export const useOrders = (filterByUser = true, shopId?: string) => {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [user?.id, filterByUser, shopId, toast]);
+  }, [user?.id, filterByUser, shopId]);
 
   const updateOrderStatus = async (orderId: string, status: Order['status']) => {
     const { error } = await supabaseWithClerk

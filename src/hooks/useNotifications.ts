@@ -1,6 +1,8 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useUser } from '@clerk/clerk-react';
 import { supabase } from '@/integrations/supabase/client';
+import { useSupabaseWithClerk } from '@/hooks/useSupabaseWithClerk';
+import { toast as sonnerToast } from 'sonner';
 
 export interface Notification {
   id: string;
@@ -13,16 +15,35 @@ export interface Notification {
   created_at: string;
 }
 
+const NOTIFICATION_SOUND_URL = 'https://assets.mixkit.co/active_storage/sfx/2354/2354-preview.mp3';
+
+const playNotificationSound = () => {
+  try {
+    const audio = new Audio(NOTIFICATION_SOUND_URL);
+    audio.volume = 0.4;
+    audio.play().catch(() => {});
+  } catch (e) {
+    // Ignore audio errors
+  }
+};
+
 export const useNotifications = () => {
   const { user } = useUser();
+  const supabaseWithClerk = useSupabaseWithClerk();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
+  const userIdRef = useRef<string | undefined>();
+  
+  // Keep ref updated
+  useEffect(() => {
+    userIdRef.current = user?.id;
+  }, [user?.id]);
 
   const fetchNotifications = useCallback(async () => {
     if (!user?.id) return;
 
-    const { data, error } = await supabase
+    const { data, error } = await supabaseWithClerk
       .from('notifications')
       .select('*')
       .eq('user_id', user.id)
@@ -36,18 +57,18 @@ export const useNotifications = () => {
       setUnreadCount((data as Notification[])?.filter(n => !n.is_read).length || 0);
     }
     setIsLoading(false);
-  }, [user?.id]);
+  }, [user?.id, supabaseWithClerk]);
 
   useEffect(() => {
     fetchNotifications();
   }, [fetchNotifications]);
 
-  // Subscribe to realtime notifications
+  // Subscribe to realtime notifications with audio alerts
   useEffect(() => {
     if (!user?.id) return;
 
     const channel = supabase
-      .channel('notifications-realtime')
+      .channel(`notifications-realtime-${user.id}`)
       .on(
         'postgres_changes',
         {
@@ -58,11 +79,33 @@ export const useNotifications = () => {
         },
         (payload) => {
           const newNotification = payload.new as Notification;
+          console.log('🔔 New notification received:', newNotification);
+          
+          // Play notification sound
+          playNotificationSound();
+          
+          // Update state
           setNotifications(prev => [newNotification, ...prev]);
           setUnreadCount(prev => prev + 1);
+          
+          // Show toast based on notification type
+          const toastOptions = {
+            description: newNotification.message,
+            duration: 5000,
+          };
+          
+          if (newNotification.type === 'chat') {
+            sonnerToast.info(`💬 ${newNotification.title}`, toastOptions);
+          } else if (newNotification.type === 'payment') {
+            sonnerToast.success(`💳 ${newNotification.title}`, toastOptions);
+          } else {
+            sonnerToast.info(`🔔 ${newNotification.title}`, toastOptions);
+          }
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        console.log('Notifications realtime subscription status:', status);
+      });
 
     return () => {
       supabase.removeChannel(channel);
@@ -70,7 +113,7 @@ export const useNotifications = () => {
   }, [user?.id]);
 
   const markAsRead = async (notificationId: string) => {
-    const { error } = await supabase
+    const { error } = await supabaseWithClerk
       .from('notifications')
       .update({ is_read: true })
       .eq('id', notificationId);
@@ -86,7 +129,7 @@ export const useNotifications = () => {
   const markAllAsRead = async () => {
     if (!user?.id) return;
 
-    const { error } = await supabase
+    const { error } = await supabaseWithClerk
       .from('notifications')
       .update({ is_read: true })
       .eq('user_id', user.id)
@@ -101,7 +144,7 @@ export const useNotifications = () => {
   const deleteNotification = async (notificationId: string) => {
     const notification = notifications.find(n => n.id === notificationId);
     
-    const { error } = await supabase
+    const { error } = await supabaseWithClerk
       .from('notifications')
       .delete()
       .eq('id', notificationId);
