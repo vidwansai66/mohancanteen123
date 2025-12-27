@@ -142,8 +142,13 @@ export const useMyShop = () => {
     
     // Subscribe to realtime updates for my shop
     if (!user?.id) return;
-    
-    const channel = supabase
+
+    console.log('My shop realtime: subscribing with Clerk-aware client', {
+      channelName: `my-shop-realtime-${user.id}`,
+      userId: user.id,
+    });
+
+    const channel = supabaseWithClerk
       .channel(`my-shop-realtime-${user.id}`)
       .on(
         'postgres_changes',
@@ -165,7 +170,7 @@ export const useMyShop = () => {
       });
 
     return () => {
-      supabase.removeChannel(channel);
+      supabaseWithClerk.removeChannel(channel);
     };
   }, [user?.id]);
 
