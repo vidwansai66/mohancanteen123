@@ -117,13 +117,6 @@ export type Database = {
             referencedRelation: "shops"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "menu_items_shop_id_fkey"
-            columns: ["shop_id"]
-            isOneToOne: false
-            referencedRelation: "shops_public"
-            referencedColumns: ["id"]
-          },
         ]
       }
       notifications: {
@@ -301,13 +294,6 @@ export type Database = {
             referencedRelation: "shops"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "orders_shop_id_fkey"
-            columns: ["shop_id"]
-            isOneToOne: false
-            referencedRelation: "shops_public"
-            referencedColumns: ["id"]
-          },
         ]
       }
       profiles: {
@@ -450,33 +436,7 @@ export type Database = {
       }
     }
     Views: {
-      shops_public: {
-        Row: {
-          created_at: string | null
-          id: string | null
-          is_active: boolean | null
-          is_open: boolean | null
-          reopen_time: string | null
-          shop_name: string | null
-        }
-        Insert: {
-          created_at?: string | null
-          id?: string | null
-          is_active?: boolean | null
-          is_open?: boolean | null
-          reopen_time?: string | null
-          shop_name?: string | null
-        }
-        Update: {
-          created_at?: string | null
-          id?: string | null
-          is_active?: boolean | null
-          is_open?: boolean | null
-          reopen_time?: string | null
-          shop_name?: string | null
-        }
-        Relationships: []
-      }
+      [_ in never]: never
     }
     Functions: {
       cancel_old_pending_orders: {
@@ -494,6 +454,17 @@ export type Database = {
           p_user_id: string
         }
         Returns: string
+      }
+      get_public_shops: {
+        Args: never
+        Returns: {
+          created_at: string
+          id: string
+          is_active: boolean
+          is_open: boolean
+          reopen_time: string
+          shop_name: string
+        }[]
       }
       has_role: {
         Args: {
