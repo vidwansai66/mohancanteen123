@@ -16,22 +16,31 @@ export interface Shop {
   updated_at: string;
 }
 
+// Public shop info (without sensitive data like UPI)
+export interface PublicShop {
+  id: string;
+  shop_name: string;
+  is_open: boolean;
+  is_active: boolean;
+  reopen_time: string | null;
+  created_at: string;
+}
+
 export const useShops = () => {
-  const [shops, setShops] = useState<Shop[]>([]);
+  const [shops, setShops] = useState<PublicShop[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   const fetchShops = async () => {
-    // Shops are publicly readable for active ones, use regular client
+    // Use the public view for browsing shops (no sensitive data)
     const { data, error } = await supabase
-      .from('shops')
+      .from('shops_public')
       .select('*')
-      .eq('is_active', true)
       .order('shop_name', { ascending: true });
 
     if (error) {
       console.error('Error fetching shops:', error);
     } else {
-      setShops((data as Shop[]) || []);
+      setShops((data as PublicShop[]) || []);
     }
     setIsLoading(false);
   };
@@ -39,7 +48,7 @@ export const useShops = () => {
   useEffect(() => {
     fetchShops();
 
-    // Subscribe to realtime updates for all shops
+    // Subscribe to realtime updates for all shops (via the base table)
     const channel = supabase
       .channel('shops-realtime-all')
       .on(
@@ -53,26 +62,42 @@ export const useShops = () => {
           console.log('🏪 Shops changed:', payload.eventType, payload);
           
           if (payload.eventType === 'INSERT') {
-            const newShop = payload.new as Shop;
+            const newShop = payload.new as any;
             if (newShop.is_active) {
-              setShops(prev => [...prev, newShop].sort((a, b) => a.shop_name.localeCompare(b.shop_name)));
+              const publicShop: PublicShop = {
+                id: newShop.id,
+                shop_name: newShop.shop_name,
+                is_open: newShop.is_open,
+                is_active: newShop.is_active,
+                reopen_time: newShop.reopen_time,
+                created_at: newShop.created_at,
+              };
+              setShops(prev => [...prev, publicShop].sort((a, b) => a.shop_name.localeCompare(b.shop_name)));
             }
           } else if (payload.eventType === 'UPDATE') {
-            const updatedShop = payload.new as Shop;
+            const updatedShop = payload.new as any;
             setShops(prev => {
               if (updatedShop.is_active) {
+                const publicShop: PublicShop = {
+                  id: updatedShop.id,
+                  shop_name: updatedShop.shop_name,
+                  is_open: updatedShop.is_open,
+                  is_active: updatedShop.is_active,
+                  reopen_time: updatedShop.reopen_time,
+                  created_at: updatedShop.created_at,
+                };
                 const exists = prev.some(s => s.id === updatedShop.id);
                 if (exists) {
-                  return prev.map(s => s.id === updatedShop.id ? updatedShop : s);
+                  return prev.map(s => s.id === updatedShop.id ? publicShop : s);
                 } else {
-                  return [...prev, updatedShop].sort((a, b) => a.shop_name.localeCompare(b.shop_name));
+                  return [...prev, publicShop].sort((a, b) => a.shop_name.localeCompare(b.shop_name));
                 }
               } else {
                 return prev.filter(s => s.id !== updatedShop.id);
               }
             });
           } else if (payload.eventType === 'DELETE') {
-            const deletedShop = payload.old as Shop;
+            const deletedShop = payload.old as any;
             setShops(prev => prev.filter(s => s.id !== deletedShop.id));
           }
         }
