@@ -15,6 +15,24 @@ interface VerificationRequest {
   userEmail: string;
 }
 
+// In-memory rate limiter (resets on function cold start, but provides basic protection)
+const rateLimits = new Map<string, { count: number; resetAt: number }>();
+
+function checkRateLimit(identifier: string, maxAttempts: number, windowMs: number): boolean {
+  const now = Date.now();
+  const record = rateLimits.get(identifier);
+
+  if (!record || record.resetAt < now) {
+    rateLimits.set(identifier, { count: 1, resetAt: now + windowMs });
+    return true;
+  }
+
+  if (record.count >= maxAttempts) return false;
+
+  record.count++;
+  return true;
+}
+
 const handler = async (req: Request): Promise<Response> => {
   // Handle CORS preflight requests
   if (req.method === "OPTIONS") {
@@ -23,7 +41,7 @@ const handler = async (req: Request): Promise<Response> => {
 
   try {
     const { userId, userEmail }: VerificationRequest = await req.json();
-    
+
     console.log(`Processing verification request for user: ${userId}, email: ${userEmail}`);
 
     if (!userId || !userEmail) {
@@ -33,14 +51,45 @@ const handler = async (req: Request): Promise<Response> => {
       });
     }
 
-    // Generate 6-digit code
-    const code = Math.floor(100000 + Math.random() * 900000).toString();
-    const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+    // Rate limit: 3 requests per 10 minutes per userId
+    if (!checkRateLimit(userId, 3, 10 * 60 * 1000)) {
+      console.log(`Rate limit exceeded for user: ${userId}`);
+      return new Response(
+        JSON.stringify({ error: "Too many requests. Please wait 10 minutes before trying again." }),
+        {
+          status: 429,
+          headers: { "Content-Type": "application/json", ...corsHeaders },
+        }
+      );
+    }
 
-    // Store code in database
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    // Database-level rate limiting: Check recent codes in the last 10 minutes
+    const { data: recentCodes, error: checkError } = await supabase
+      .from("shopkeeper_verification_codes")
+      .select("created_at")
+      .eq("user_id", userId)
+      .gte("created_at", new Date(Date.now() - 10 * 60 * 1000).toISOString());
+
+    if (checkError) {
+      console.error("Error checking recent codes:", checkError);
+    } else if (recentCodes && recentCodes.length >= 3) {
+      console.log(`Database rate limit exceeded for user: ${userId}`);
+      return new Response(
+        JSON.stringify({ error: "Too many verification requests. Please wait 10 minutes." }),
+        {
+          status: 429,
+          headers: { "Content-Type": "application/json", ...corsHeaders },
+        }
+      );
+    }
+
+    // Generate 6-digit code
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
 
     const { error: dbError } = await supabase
       .from("shopkeeper_verification_codes")

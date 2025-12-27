@@ -44,11 +44,34 @@ const UPIPaymentDialog = ({ order, open, onOpenChange, onPaymentSubmitted }: UPI
     setTimeout(() => setStep('verify'), 1000);
   };
 
+  const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+  const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/jpg'];
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      setScreenshotFile(file);
+    if (!file) return;
+
+    if (!ALLOWED_TYPES.includes(file.type)) {
+      toast({
+        title: 'Invalid file type',
+        description: 'Please upload JPEG, PNG, or WebP images only',
+        variant: 'destructive',
+      });
+      e.target.value = '';
+      return;
     }
+
+    if (file.size > MAX_FILE_SIZE) {
+      toast({
+        title: 'File too large',
+        description: 'Maximum file size is 5MB',
+        variant: 'destructive',
+      });
+      e.target.value = '';
+      return;
+    }
+
+    setScreenshotFile(file);
   };
 
   const handleSubmitVerification = async () => {
@@ -182,6 +205,7 @@ const UPIPaymentDialog = ({ order, open, onOpenChange, onPaymentSubmitted }: UPI
                     <div className="flex flex-col items-center gap-2 text-muted-foreground">
                       <Upload className="w-8 h-8" />
                       <span className="text-sm">Tap to upload screenshot</span>
+                      <span className="text-xs">Max 5MB • JPEG, PNG, WebP</span>
                     </div>
                   )}
                 </label>
