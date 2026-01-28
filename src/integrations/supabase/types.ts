@@ -455,6 +455,14 @@ export type Database = {
         }
         Returns: string
       }
+      get_customer_profile_for_order: {
+        Args: { p_order_id: string }
+        Returns: {
+          avatar_url: string
+          full_name: string
+          user_id: string
+        }[]
+      }
       get_public_shops: {
         Args: never
         Returns: {
