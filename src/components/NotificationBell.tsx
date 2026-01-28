@@ -40,8 +40,8 @@ const NotificationBell = () => {
         // Shopkeeper stays on dashboard (orders are visible there)
         // Just close the popover
       } else {
-        // Student navigates to orders page
-        navigate('/student/orders');
+        // Customer navigates to orders page
+        navigate('/customer/orders');
       }
     }
     setOpen(false);

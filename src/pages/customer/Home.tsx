@@ -6,11 +6,11 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Search, UtensilsCrossed, ArrowLeft, Store, RefreshCw } from 'lucide-react';
-import BottomNav from '@/components/student/BottomNav';
-import MenuItemCard from '@/components/student/MenuItemCard';
-import CartDrawer from '@/components/student/CartDrawer';
-import ShopCard from '@/components/student/ShopCard';
-import ShopClosedBanner from '@/components/student/ShopClosedBanner';
+import BottomNav from '@/components/customer/BottomNav';
+import MenuItemCard from '@/components/customer/MenuItemCard';
+import CartDrawer from '@/components/customer/CartDrawer';
+import ShopCard from '@/components/customer/ShopCard';
+import ShopClosedBanner from '@/components/customer/ShopClosedBanner';
 import { Skeleton } from '@/components/ui/skeleton';
 import NotificationBell from '@/components/NotificationBell';
 import { cn } from '@/lib/utils';
@@ -68,8 +68,8 @@ const StudentHome = () => {
                 <UtensilsCrossed className="w-5 h-5 text-primary-foreground" />
               </div>
               <div>
-                <h1 className="font-bold text-foreground">Campus Canteen</h1>
-                <p className="text-xs text-muted-foreground">Hi, {user?.firstName || 'Student'}!</p>
+                <h1 className="font-bold text-foreground">Preorder</h1>
+                <p className="text-xs text-muted-foreground">Hi, {user?.firstName || 'Customer'}!</p>
               </div>
             </div>
             <div className="flex items-center gap-2">

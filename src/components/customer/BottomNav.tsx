@@ -13,9 +13,9 @@ const BottomNav = ({ onCartClick }: BottomNavProps) => {
   const totalItems = useCartStore((state) => state.getTotalItems());
 
   const navItems = [
-    { icon: Home, label: 'Home', path: '/student' },
-    { icon: ClipboardList, label: 'Orders', path: '/student/orders' },
-    { icon: Heart, label: 'Favourites', path: '/student/favourites' },
+    { icon: Home, label: 'Home', path: '/customer' },
+    { icon: ClipboardList, label: 'Orders', path: '/customer/orders' },
+    { icon: Heart, label: 'Favourites', path: '/customer/favourites' },
   ];
 
   return (
