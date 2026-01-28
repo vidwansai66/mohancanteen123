@@ -163,12 +163,12 @@ const handler = async (req: Request): Promise<Response> => {
 
     // Send email to admin
     const emailResponse = await resend.emails.send({
-      from: "Campus Canteen <onboarding@resend.dev>",
+      from: "Preorder <onboarding@resend.dev>",
       to: [ADMIN_EMAIL],
       subject: "Shopkeeper Verification Code Request",
       html: `
         <h1>Shopkeeper Access Request</h1>
-        <p>A user is requesting shopkeeper access to Campus Canteen.</p>
+        <p>A user is requesting shopkeeper access to Preorder.</p>
         <p><strong>User Email:</strong> ${userEmail}</p>
         <p><strong>User ID:</strong> ${userId}</p>
         <p><strong>Verification Code:</strong></p>

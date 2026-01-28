@@ -41,8 +41,8 @@ const AuthPage = () => {
             <UtensilsCrossed className="w-7 h-7 text-primary-foreground" />
           </div>
         </div>
-        <h1 className="text-2xl font-bold text-foreground">Campus Canteen</h1>
-        <p className="text-muted-foreground mt-1">Order food from your campus canteen</p>
+        <h1 className="text-2xl font-bold text-foreground">Preorder</h1>
+        <p className="text-muted-foreground mt-1">Order food in advance</p>
       </header>
 
       <section className="w-full max-w-md" aria-label={isSignUp ? 'Sign up' : 'Sign in'}>

@@ -15,9 +15,9 @@ import { useUserRole } from "@/hooks/useUserRole";
 
 import AuthPage from "@/pages/Auth";
 import RoleSelection from "@/pages/RoleSelection";
-import StudentHome from "@/pages/student/Home";
-import StudentOrders from "@/pages/student/Orders";
-import StudentFavourites from "@/pages/student/Favourites";
+import CustomerHome from "@/pages/customer/Home";
+import CustomerOrders from "@/pages/customer/Orders";
+import CustomerFavourites from "@/pages/customer/Favourites";
 import ShopkeeperDashboard from "@/pages/shopkeeper/Dashboard";
 import ShopkeeperMenu from "@/pages/shopkeeper/Menu";
 import NotFound from "@/pages/NotFound";
@@ -45,7 +45,7 @@ function RoleBasedRedirect() {
       </div>
     );
   if (!role) return <Navigate to="/role-selection" replace />;
-  return <Navigate to={role === "shopkeeper" ? "/shopkeeper" : "/student"} replace />;
+  return <Navigate to={role === "shopkeeper" ? "/shopkeeper" : "/customer"} replace />;
 }
 
 function MissingClerkKeyError() {
@@ -189,26 +189,26 @@ function App() {
                 }
               />
               <Route
-                path="/student"
+                path="/customer"
                 element={
                   <ProtectedRoute>
-                    <StudentHome />
+                    <CustomerHome />
                   </ProtectedRoute>
                 }
               />
               <Route
-                path="/student/orders"
+                path="/customer/orders"
                 element={
                   <ProtectedRoute>
-                    <StudentOrders />
+                    <CustomerOrders />
                   </ProtectedRoute>
                 }
               />
               <Route
-                path="/student/favourites"
+                path="/customer/favourites"
                 element={
                   <ProtectedRoute>
-                    <StudentFavourites />
+                    <CustomerFavourites />
                   </ProtectedRoute>
                 }
               />

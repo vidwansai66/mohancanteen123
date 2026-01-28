@@ -366,7 +366,7 @@ const ShopkeeperDashboard = () => {
         open={!!chatOrderId}
         onOpenChange={(open) => !open && setChatOrderId(null)}
         currentUserRole="shopkeeper"
-        studentName={chatOrder?.profile?.full_name}
+        customerName={chatOrder?.profile?.full_name}
         shopName={shop.shop_name}
       />
     </div>

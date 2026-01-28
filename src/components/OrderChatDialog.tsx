@@ -13,7 +13,7 @@ interface OrderChatDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   currentUserRole: 'student' | 'shopkeeper';
-  studentName?: string | null;
+  customerName?: string | null;
   shopName?: string | null;
 }
 
@@ -22,7 +22,7 @@ const OrderChatDialog = ({
   open,
   onOpenChange,
   currentUserRole,
-  studentName,
+  customerName,
   shopName,
 }: OrderChatDialogProps) => {
   const { messages, isLoading, sendMessage } = useOrderChat(orderId);
@@ -56,7 +56,7 @@ const OrderChatDialog = ({
 
   const getSenderName = (msg: OrderMessage) => {
     if (msg.sender_role === 'student') {
-      return studentName || 'Student';
+      return customerName || 'Customer';
     }
     return shopName || 'Shop';
   };

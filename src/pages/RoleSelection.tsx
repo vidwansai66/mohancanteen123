@@ -32,18 +32,18 @@ const RoleSelection = () => {
 
   // If already has a role, redirect
   if (role) {
-    return <Navigate to={role === 'shopkeeper' ? '/shopkeeper' : '/student'} replace />;
+    return <Navigate to={role === 'shopkeeper' ? '/shopkeeper' : '/customer'} replace />;
   }
 
-  const handleStudentSelect = async () => {
+  const handleCustomerSelect = async () => {
     setIsLoading(true);
     const success = await setUserRole('student');
     if (success) {
       toast({
-        title: "Welcome, Student!",
+        title: "Welcome, Customer!",
         description: "You can now browse the menu and place orders.",
       });
-      navigate('/student');
+      navigate('/customer');
     } else {
       toast({
         title: "Error",
@@ -372,20 +372,20 @@ const RoleSelection = () => {
             <UtensilsCrossed className="w-7 h-7 text-primary-foreground" />
           </div>
         </div>
-        <h1 className="text-2xl font-bold text-foreground">Welcome to Campus Canteen</h1>
+        <h1 className="text-2xl font-bold text-foreground">Welcome to Preorder</h1>
         <p className="text-muted-foreground mt-1">How would you like to use this app?</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full max-w-2xl">
         <Card 
           className="cursor-pointer transition-all hover:border-primary hover:shadow-lg hover:shadow-primary/10"
-          onClick={() => !isLoading && handleStudentSelect()}
+          onClick={() => !isLoading && handleCustomerSelect()}
         >
           <CardHeader className="text-center">
             <div className="mx-auto w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mb-4">
               <GraduationCap className="w-8 h-8 text-primary" />
             </div>
-            <CardTitle>I'm a Student</CardTitle>
+            <CardTitle>I'm a Customer</CardTitle>
             <CardDescription>
               Browse menu, place orders, and track your food
             </CardDescription>
@@ -396,7 +396,7 @@ const RoleSelection = () => {
               disabled={isLoading}
             >
               {isLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
-              Continue as Student
+              Continue as Customer
             </Button>
           </CardContent>
         </Card>
